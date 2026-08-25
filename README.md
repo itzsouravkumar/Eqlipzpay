@@ -1,99 +1,157 @@
-# EqlipZ Pay
+<a id="readme-top"></a>
 
-**A Trust Layer for Payments Made by Humans and AI Agents**
 
-EqlipZ Pay operates as risk and trust middleware for digital payments. Designed specifically to integrate with Razorpay Route and emerging AI agent protocols (AP2, UCP, MCP), the system mitigates settlement risk by introducing a reversible, mathematically bounded "Hold" state for ambiguous transactions. Rather than forcing a binary approve/decline decision, EqlipZ Pay holds funds for a maximum of 48 hours while maintaining rigorous statistical guarantees on accuracy.
 
-This project is built for robustness, modularity, and rapid deployment in production environments.
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+  <a href="https://github.com/itzsouravkumar/Eqlipzpay">
+    <img src="assets/logo.png" alt="Logo" width="180">
+  </a>
 
----
+  <h1 align="center">EqlipZ Pay</h1>
 
-## System Architecture
+  <p align="center">
+    A Trust Layer for Payments Made by Humans and AI Agents
+    <br />
+    <br />
+  </p>
+</div>
 
-EqlipZ Pay is composed of highly decoupled services that intercept and evaluate incoming payment authorizations before they reach the final settlement layer.
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+      <ul>
+        <li><a href="#built-with">Built With</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#architecture--data-flow">Architecture & Data Flow</a>
+    </li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ol>
+</details>
 
-- **Ingestion Gateway**: Receives incoming webhooks from Razorpay and proxies Model Context Protocol (MCP) tool calls from autonomous AI agents.
-- **Conformal Risk Engine**: Applies conformal prediction methodologies to generate statistically bounded confidence sets around existing risk scores (e.g., Razorpay Vulcan).
-- **Semantic Entailment Engine**: Validates AI agent intent by checking signed shopping carts against the user's original request parameters.
-- **Decision Router**: Synthesizes inputs to emit a definitive action: `Release`, `Refuse`, or `Hold`.
-- **Calibration Feedback Loop**: Continuously ingests outcomes from the Razorpay Disputes API to adjust decision thresholds, ensuring the statistical guarantee remains robust against drift.
-- **Sweeper**: A reconciliation daemon that polls for missed webhooks or dropped state transitions.
+<!-- ABOUT THE PROJECT -->
+## About The Project
 
-## Project Structure
+EqlipZ Pay is risk and trust middleware for digital payments, built to mitigate settlement risk for **Razorpay Route** and AI agent protocols (AP2, UCP, MCP). It replaces binary approve/decline systems with a reversible, mathematically bounded **Hold** state (max 48h) for ambiguous transactions, powered by continuous calibration.
 
-```text
-eqlipz-pay/
-├── actions/             # Executes idempotent state changes (Transfers, Refunds, Disputes)
-├── config/              # Environment configurations and threshold limits
-├── docs/                # Architecture research and product requirement documents
-├── flywheel/            # Continuous calibration and Trust Passport generation
-├── ingestion/           # Webhook ingestion and MCP tool proxying
-├── risk_kernel/         # Core prediction, conformal scoring, and semantic evaluation
-├── sweeper/             # Daemon for reconciliation and polling
-├── tests/               # Automated integration and unit tests
-├── main.py              # Application entry point (FastAPI)
-├── render.yaml          # Render deployment specification
-└── requirements.txt     # Python dependencies
-```
+Rather than forcing a binary approve/decline decision, EqlipZ Pay holds funds for a maximum of 48 hours while maintaining rigorous statistical guarantees on accuracy.
 
-## Deployment
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-EqlipZ Pay is containerized and configured for straightforward deployment on cloud platforms. The primary deployment target is Render.
+### Built With
+
+* [![Python][python-shield]][python-url]
+* [![FastAPI][fastapi-shield]][fastapi-url]
+* [![Scikit-Learn][scikit-shield]][scikit-url]
+* [![Pandas][pandas-shield]][pandas-url]
+* [![Render][render-shield]][render-url]
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- ARCHITECTURE AND DATA FLOW -->
+## Architecture & Data Flow
+
+EqlipZ Pay relies on highly decoupled services to intercept and evaluate payment authorizations in real-time.
+
+<p align="center">
+  <img src="assets/architecture.svg" alt="System Architecture Diagram" width="900" />
+</p>
+
+<p align="center">
+  <img src="assets/flow.svg" alt="Escrow Mechanics and Data Flow Diagram" width="900" />
+</p>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- GETTING STARTED -->
+## Getting Started
+
+To get a local copy up and running follow these simple example steps.
 
 ### Prerequisites
 
-- Python 3.10+
-- Razorpay API Credentials
-- Render Account
+* Python 3.10+
+* Git
+* A Razorpay Developer Account
 
-### Local Development Environment
+### Installation
 
-1. **Clone the repository and configure the virtual environment:**
-   ```bash
-   git clone <repository_url>
-   cd eqlipz-pay
+1. Clone the repo
+   ```sh
+   git clone https://github.com/itzsouravkumar/Eqlipzpay.git
+   ```
+2. Navigate into the directory and create a virtual environment
+   ```sh
+   cd EqlipZPay
    python -m venv venv
    source venv/bin/activate
    ```
-
-2. **Install dependencies:**
-   ```bash
+3. Install dependencies
+   ```sh
    pip install -r requirements.txt
    ```
-
-3. **Configure Environment Variables:**
-   Ensure `config/razorpay_keys.env` is populated with the necessary API keys and secrets. (Note: Do not commit this file to version control).
-
-4. **Initialize the Server:**
-   ```bash
+4. Enter your API credentials in `config/razorpay_keys.env`
+   ```sh
+   RAZORPAY_KEY_ID='YOUR_KEY_ID'
+   RAZORPAY_KEY_SECRET='YOUR_KEY_SECRET'
+   ```
+5. Run the application
+   ```sh
    uvicorn main:app --host 0.0.0.0 --port 10000 --reload
    ```
 
-### Production Deployment via Render
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-The repository includes a `render.yaml` specification for Infrastructure as Code (IaC) deployment on Render.
+<!-- ROADMAP -->
+## Roadmap
 
-1. Connect your repository to your Render account.
-2. Render will automatically detect the `render.yaml` file and provision the web service.
-3. Configure your production environment variables (e.g., `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`) securely within the Render dashboard.
-4. The service will build dependencies from `requirements.txt` and launch via `uvicorn`.
+- [x] Initial Project Scaffolding
+- [x] Integrate Conformal Risk Engine
+- [ ] Implement Semantic Entailment validation for AI agents
+- [ ] Establish feedback loop with Razorpay Disputes API
+- [ ] Production deployment on Render
 
-## Escrow Mechanics and Data Flow
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-EqlipZ Pay handles state transitions securely and idempotently:
+<!-- LICENSE -->
+## License
 
-1. **Observation**: A webhook event (`payment.authorized`) or an MCP proxy event is received.
-2. **Analysis**: The event is passed through the risk and semantic engines.
-3. **Decisioning**:
-   - **Benign Only**: Executes an immediate release via a Razorpay Route transfer.
-   - **Fraud Only**: Immediately issues a refund and blocks the transaction.
-   - **Ambiguous**: Places a temporary escrow hold on the transfer (`on_hold: true`).
-4. **Resolution**: Held transactions await manual review or automatic timeout at 48 hours, defaulting to a safe release to prevent indefinite vendor fund locking.
+Distributed under a Proprietary License. Developed exclusively for the Razorpay AI Buildathon 2026.
 
-## Reliability and Idempotency
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-All write operations to the Razorpay API utilize the unique payment ID as an idempotency key. This ensures that network timeouts, webhook retries, or execution interruptions do not result in duplicate transfers or duplicated refund operations.
+<!-- CONTACT -->
+## Contact
 
----
+Sourav Kumar - [itzsouravkumar](https://github.com/itzsouravkumar)
 
-*Confidential - Developed for the Razorpay AI Buildathon 2026.*
+Project Link: [https://github.com/itzsouravkumar/Eqlipzpay](https://github.com/itzsouravkumar/Eqlipzpay)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- MARKDOWN LINKS & IMAGES -->
+[python-shield]: https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white
+[python-url]: https://python.org/
+[fastapi-shield]: https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white
+[fastapi-url]: https://fastapi.tiangolo.com/
+[scikit-shield]: https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white
+[scikit-url]: https://scikit-learn.org/
+[pandas-shield]: https://img.shields.io/badge/pandas-150458?style=for-the-badge&logo=pandas&logoColor=white
+[pandas-url]: https://pandas.pydata.org/
+[render-shield]: https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white
+[render-url]: https://render.com/
