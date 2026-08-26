@@ -1,0 +1,27 @@
+# ──────────────────────────────────────────────
+# EqlipZ Pay — Conformal Risk Engine Thresholds
+# ──────────────────────────────────────────────
+
+# Conformal prediction significance level.
+# alpha = 0.10 means 90% marginal coverage guarantee:
+# the true label is inside the prediction set at least 90% of the time.
+alpha: 0.10
+
+# Maximum hours a HOLD can last before auto-release.
+hold_max_hours: 48
+
+# Semantic Entailment Engine thresholds.
+# Scores above this are considered ALIGNED (intent matches cart).
+intent_alignment_threshold: 0.65
+
+# Scores below this are considered MISMATCH (possible injection / drift).
+intent_mismatch_threshold: 0.35
+
+# Decision router weights.
+# When combining conformal + semantic signals for agent transactions,
+# these control how aggressively the system holds vs releases.
+agent_hold_bias: 0.1  # Extra caution for agent-initiated transactions
+
+# Calibration feedback loop.
+calibration_window_hours: 24  # Rolling recalibration window
+min_calibration_samples: 50   # Minimum outcomes before recalibrating

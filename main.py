@@ -1,16 +1,224 @@
+import logging
+import yaml
+from pathlib import Path
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 from ingestion.webhook_listener import router as webhook_router
 from ingestion.mcp_proxy import router as mcp_proxy_router
+from risk_kernel.conformal_engine import ConformalRiskEngine
+from risk_kernel.semantic_engine import SemanticEntailmentEngine
+from risk_kernel.decision_router import DecisionRouter
+from schemas import (
+    RiskEvaluationRequest, RiskEvaluationResponse,
+    RiskStats, ActionType, TransactionSource,
+)
+
+# ──────────────────────────────────────────────
+# Logging
+# ──────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+)
+logger = logging.getLogger("eqlipz")
+
+# ──────────────────────────────────────────────
+# Load config
+# ──────────────────────────────────────────────
+
+CONFIG_PATH = Path(__file__).parent / "config" / "thresholds.yaml"
+
+def load_config():
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            return yaml.safe_load(f)
+    except Exception:
+        return {
+            "alpha": 0.10,
+            "hold_max_hours": 48,
+            "intent_alignment_threshold": 0.65,
+            "intent_mismatch_threshold": 0.35,
+            "agent_hold_bias": 0.1,
+        }
+
+config = load_config()
+
+# ──────────────────────────────────────────────
+# Initialize Risk Kernel Engines (singletons)
+# ──────────────────────────────────────────────
+
+conformal_engine = ConformalRiskEngine(alpha=config.get("alpha", 0.10))
+
+semantic_engine = SemanticEntailmentEngine(
+    alignment_threshold=config.get("intent_alignment_threshold", 0.65),
+    mismatch_threshold=config.get("intent_mismatch_threshold", 0.35),
+)
+
+decision_router = DecisionRouter(
+    hold_max_hours=config.get("hold_max_hours", 48),
+    agent_hold_bias=config.get("agent_hold_bias", 0.1),
+)
+
+# ──────────────────────────────────────────────
+# FastAPI App
+# ──────────────────────────────────────────────
 
 app = FastAPI(title="EqlipZ Pay API", docs_url=None)
 
 app.mount("/dashboard", StaticFiles(directory="static", html=True), name="static")
 
+# Share engine instances with routers via app.state
+app.state.conformal_engine = conformal_engine
+app.state.semantic_engine = semantic_engine
+app.state.decision_router = decision_router
+
 app.include_router(webhook_router, prefix="/webhooks", tags=["Webhooks"])
 app.include_router(mcp_proxy_router, prefix="/mcp", tags=["MCP Proxy"])
+
+
+# ──────────────────────────────────────────────
+# Layer 1: The EqlipZ Risk API (core product)
+# ──────────────────────────────────────────────
+
+@app.post("/v1/risk/evaluate", response_model=RiskEvaluationResponse, tags=["Risk API"])
+async def evaluate_risk(request: RiskEvaluationRequest):
+    """
+    POST /v1/risk/evaluate — The core EqlipZ Risk API.
+
+    Evaluates a transaction and returns a calibrated decision:
+    RELEASE, REFUSE, or HOLD, along with the prediction set,
+    risk score, intent alignment (for agents), and reason codes.
+    """
+    # Build features dict for the conformal engine
+    features = {
+        "payment_id": request.payment_id or "api-eval",
+        "amount": request.transaction.amount,
+        "TransactionAmt": request.transaction.amount,
+        "is_international": request.transaction.is_international,
+        "transaction_count_1h": request.transaction.transaction_count_1h or 0,
+        "transaction_count_24h": request.transaction.transaction_count_24h or 0,
+    }
+    
+    # Add extra features if provided
+    if request.transaction.extra_features:
+        features.update(request.transaction.extra_features)
+    
+    # ── Step 1: Conformal Risk Engine ──
+    risk_decision = conformal_engine.score(features)
+    
+    # ── Step 2: Semantic Engine (agent transactions only) ──
+    intent_result = None
+    is_agent = request.source in (
+        TransactionSource.AGENT_MCP,
+        TransactionSource.AGENT_AP2,
+        TransactionSource.AGENT_UCP,
+    )
+    
+    if is_agent and request.user_intent and request.cart:
+        cart_dicts = [item.model_dump() for item in request.cart]
+        agent_ctx = request.agent_context.model_dump() if request.agent_context else None
+        intent_result = semantic_engine.check_alignment(
+            user_intent=request.user_intent,
+            cart_items=cart_dicts,
+            agent_context=agent_ctx,
+        )
+    
+    # ── Step 3: Decision Router ──
+    result = decision_router.route(
+        risk_decision=risk_decision,
+        intent_result=intent_result,
+        source=request.source,
+        amount=request.transaction.amount,
+        payment_id=request.payment_id or "api-eval",
+    )
+    
+    return RiskEvaluationResponse(
+        decision=result["action"],
+        risk_score=result["risk_score"],
+        intent_alignment=result.get("intent_alignment"),
+        prediction_set=result["prediction_set"],
+        reason_codes=result["reason_codes"],
+        audit_id=result["audit_id"],
+        hold_expires_at=result.get("hold_expires_at"),
+    )
+
+
+@app.get("/v1/risk/stats", response_model=RiskStats, tags=["Risk API"])
+async def get_risk_stats():
+    """
+    GET /v1/risk/stats — Coverage metrics and decision statistics.
+    """
+    conformal_stats = conformal_engine.get_coverage_stats()
+    router_stats = decision_router.get_stats()
+    semantic_stats = semantic_engine.get_stats()
+    
+    return RiskStats(
+        total_transactions=router_stats["total_routed"],
+        total_released=router_stats["release"],
+        total_refused=router_stats["refuse"],
+        total_held=router_stats["hold"],
+        agents_checked=semantic_stats["total_checked"],
+        fraud_prevented_amount=router_stats["fraud_prevented_amount"],
+        conformal_coverage=conformal_stats["empirical_coverage"],
+        false_positive_cost=0.0,  # Computed once feedback loop is live (Day 4)
+    )
+
+
+# ──────────────────────────────────────────────
+# Dashboard API (feeds the web control plane)
+# ──────────────────────────────────────────────
+
+@app.get("/api/transactions", tags=["Dashboard"])
+async def get_transactions():
+    """Returns the audit log for the dashboard transaction table."""
+    return decision_router.get_audit_log(limit=50)
+
+
+@app.get("/api/risk-log", tags=["Dashboard"])
+async def get_risk_log():
+    """Returns engine log entries for the Conformal Engine Log panel."""
+    return decision_router.get_risk_log(limit=20)
+
+
+@app.get("/api/stats", tags=["Dashboard"])
+async def get_dashboard_stats():
+    """Returns summary stats for the dashboard stat cards."""
+    router_stats = decision_router.get_stats()
+    conformal_stats = conformal_engine.get_coverage_stats()
+    semantic_stats = semantic_engine.get_stats()
+    
+    return {
+        "total_transactions": router_stats["total_routed"],
+        "agents_checked": semantic_stats["total_checked"],
+        "escrow_holds": router_stats["hold"],
+        "fraud_prevented": router_stats["fraud_prevented_amount"],
+        "conformal_coverage": conformal_stats["empirical_coverage"],
+        "model_loaded": conformal_stats["model_loaded"],
+        "hold_rate": conformal_stats["hold_rate"],
+    }
+
+
+# ──────────────────────────────────────────────
+# Root + Docs
+# ──────────────────────────────────────────────
+
+@app.get("/")
+def read_root():
+    return {
+        "status": "operational",
+        "service": "EqlipZ Pay",
+        "version": "2.0.0-day2",
+        "model_loaded": conformal_engine.is_loaded,
+        "engines": {
+            "conformal": "active",
+            "semantic": "active",
+            "router": "active",
+        },
+    }
+
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html(req: Request):
@@ -408,8 +616,3 @@ async def custom_swagger_ui_html(req: Request):
     
     html_content = html_content.replace("</head>", f"{custom_css}{custom_js}</head>")
     return HTMLResponse(html_content)
-
-@app.get("/")
-def read_root():
-    return {"status": "operational", "service": "EqlipZ Pay"}
-

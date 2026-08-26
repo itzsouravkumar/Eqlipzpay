@@ -6,3 +6,7 @@ mapie
 scikit-learn
 numpy
 pandas
+kagglehub
+lightgbm
+joblib
+pyyaml

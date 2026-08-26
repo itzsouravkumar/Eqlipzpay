@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EqlipZ Pay Dashboard</title>
+    <meta name="description" content="EqlipZ Pay — AI Risk Infrastructure Layer. Real-time monitoring for conformal risk decisions, agent intent verification, and escrow holds.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -17,82 +18,120 @@
                 <h2>EqlipZ Pay</h2>
             </div>
             <nav class="nav-menu">
-                <a href="#" class="nav-link active">Dashboard</a>
-                <a href="#" class="nav-link">Transactions</a>
-                <a href="#" class="nav-link">Risk Engine</a>
-                <a href="#" class="nav-link">Settings</a>
+                <a href="#" class="nav-link active" data-target="tab-dashboard">Dashboard</a>
+                <a href="#" class="nav-link" data-target="tab-transactions">Transactions</a>
+                <a href="#" class="nav-link" data-target="tab-risk">Risk Engine</a>
+                <a href="#" class="nav-link" data-target="tab-settings">Settings</a>
             </nav>
             <div class="sidebar-footer">
                 <p>Razorpay AI Buildathon</p>
-                <p class="muted">v1.0.0-beta</p>
+                <p class="muted">v2.0.0-day2</p>
             </div>
         </aside>
 
         <!-- Main Content -->
         <main class="main-content">
-            <header class="top-header">
-                <h1>Overview</h1>
-                <div class="header-actions">
-                    <button class="btn btn-outline">Export Report</button>
-                    <button class="btn btn-primary">Refresh Data</button>
-                </div>
-            </header>
+            
+            <!-- Dashboard Tab -->
+            <div id="tab-dashboard" class="tab-pane active">
+                <header class="top-header">
+                    <h1>Overview</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-outline">Export Report</button>
+                        <button class="btn btn-primary">Refresh Data</button>
+                    </div>
+                </header>
 
-            <!-- Stats Grid -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <h3 class="stat-label">Total Transactions</h3>
-                    <p class="stat-value">1,248</p>
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3 class="stat-label">Total Transactions</h3>
+                        <p class="stat-value">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="stat-label">Agents Checked</h3>
+                        <p class="stat-value">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="stat-label">Escrow Holds</h3>
+                        <p class="stat-value alert-text">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 class="stat-label">Fraud Prevented</h3>
+                        <p class="stat-value success-text">₹ 0.00</p>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <h3 class="stat-label">Agents Checked</h3>
-                    <p class="stat-value">342</p>
-                </div>
-                <div class="stat-card">
-                    <h3 class="stat-label">Escrow Holds</h3>
-                    <p class="stat-value alert-text">14</p>
-                </div>
-                <div class="stat-card">
-                    <h3 class="stat-label">Fraud Prevented</h3>
-                    <p class="stat-value success-text">₹ 42,500</p>
+
+                <!-- Content Grid -->
+                <div class="content-grid">
+                    <!-- Transactions Feed -->
+                    <section class="panel">
+                        <div class="panel-header">
+                            <h2>Recent Transactions</h2>
+                            <a href="#" class="view-all">View All</a>
+                        </div>
+                        <div class="panel-content">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Payment ID</th>
+                                        <th>Source</th>
+                                        <th>Amount</th>
+                                        <th>Decision</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transaction-feed">
+                                    <!-- Populated by live API data -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- Risk Engine Activity -->
+                    <section class="panel">
+                        <div class="panel-header">
+                            <h2>Conformal Engine Log</h2>
+                        </div>
+                        <div class="panel-content log-container" id="risk-log">
+                            <!-- Populated by live API data -->
+                        </div>
+                    </section>
                 </div>
             </div>
 
-            <!-- Content Grid -->
-            <div class="content-grid">
-                <!-- Transactions Feed -->
-                <section class="panel">
-                    <div class="panel-header">
-                        <h2>Recent Transactions</h2>
-                        <a href="#" class="view-all">View All</a>
-                    </div>
-                    <div class="panel-content">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Payment ID</th>
-                                    <th>Source</th>
-                                    <th>Amount</th>
-                                    <th>Decision</th>
-                                </tr>
-                            </thead>
-                            <tbody id="transaction-feed">
-                                <!-- Populated by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-
-                <!-- Risk Engine Activity -->
-                <section class="panel">
-                    <div class="panel-header">
-                        <h2>Conformal Engine Log</h2>
-                    </div>
-                    <div class="panel-content log-container" id="risk-log">
-                        <!-- Populated by JS -->
-                    </div>
-                </section>
+            <!-- Transactions Tab -->
+            <div id="tab-transactions" class="tab-pane" style="display: none;">
+                <header class="top-header">
+                    <h1>Transactions</h1>
+                </header>
+                <div class="panel" style="margin-top: 24px; padding: 48px; text-align: center;">
+                    <h2 style="color: var(--text-color); margin-bottom: 8px;">Detailed Ledger</h2>
+                    <p style="color: var(--text-muted);">Historical transaction reporting and export tools will be implemented here (Day 3).</p>
+                </div>
             </div>
+
+            <!-- Risk Engine Tab -->
+            <div id="tab-risk" class="tab-pane" style="display: none;">
+                <header class="top-header">
+                    <h1>Risk Engine Configuration</h1>
+                </header>
+                <div class="panel" style="margin-top: 24px; padding: 48px; text-align: center;">
+                    <h2 style="color: var(--text-color); margin-bottom: 8px;">Conformal & Semantic Settings</h2>
+                    <p style="color: var(--text-muted);">Live threshold tuning (alpha confidence levels, budget sensitivity) coming soon.</p>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="tab-settings" class="tab-pane" style="display: none;">
+                <header class="top-header">
+                    <h1>Settings</h1>
+                </header>
+                <div class="panel" style="margin-top: 24px; padding: 48px; text-align: center;">
+                    <h2 style="color: var(--text-color); margin-bottom: 8px;">Platform Integrations</h2>
+                    <p style="color: var(--text-muted);">API key management and webhook configuration coming soon.</p>
+                </div>
+            </div>
+
         </main>
     </div>
 

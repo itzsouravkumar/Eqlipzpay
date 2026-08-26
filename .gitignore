@@ -3,3 +3,7 @@ config/razorpay_keys.env
 __pycache__/
 *.pyc
 .DS_Store
+venv/
+data/processed/
+data/models/
+*.joblib

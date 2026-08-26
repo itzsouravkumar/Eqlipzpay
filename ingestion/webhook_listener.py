@@ -49,12 +49,46 @@ async def receive_webhook(request: Request, x_razorpay_signature: str = Header(N
         transaction = Transaction(
             payment_id=payment_id,
             amount=amount,
-            source=TransactionSource.HUMAN, # Can determine source via metadata if agent
+            source=TransactionSource.HUMAN,  # Can determine source via metadata if agent
             status=TransactionStatus.AUTHORIZED
         )
         
-        # TODO: Send transaction to Conformal Risk Engine for decision
+        # 4. Send transaction through the Risk Kernel
+        conformal_engine = request.app.state.conformal_engine
+        decision_router = request.app.state.decision_router
         
-        return {"status": "success", "message": "Webhook processed successfully"}
+        # Build features from webhook payload
+        features = {
+            "payment_id": payment_id,
+            "amount": amount / 100,  # Razorpay sends amount in paise
+            "TransactionAmt": amount / 100,
+        }
+        
+        # Extract extra features from webhook payload if available
+        entity = data["payload"]["payment"]["entity"]
+        if entity.get("international"):
+            features["is_international"] = True
+        if entity.get("card"):
+            features["card_type"] = entity["card"].get("type", "")
+        
+        # Score through conformal engine
+        risk_decision = conformal_engine.score(features)
+        
+        # Route through decision router (HUMAN path: conformal only)
+        result = decision_router.route(
+            risk_decision=risk_decision,
+            intent_result=None,  # No intent check for human transactions
+            source=TransactionSource.HUMAN,
+            amount=amount / 100,
+            payment_id=payment_id,
+        )
+        
+        return {
+            "status": "success",
+            "message": "Webhook processed through risk kernel",
+            "decision": result["action"].value,
+            "audit_id": result["audit_id"],
+            "prediction_set": result["prediction_set"],
+        }
         
     return {"status": "ignored", "message": "Unhandled event type"}
