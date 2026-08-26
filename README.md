@@ -76,6 +76,10 @@ EqlipZ Pay relies on highly decoupled services to intercept and evaluate payment
   <img src="assets/flow.svg" alt="Escrow Mechanics and Data Flow Diagram" width="900" />
 </p>
 
+> **Note on Data Flow:** The diagrams feature two distinct "backward" arrows that represent EqlipZ Pay's **Continuous Calibration Feedback Loop**. While transactions and money flow forward, outcomes flow backward:
+> 1. **Disputes API / Refuse ➔ Calibration:** The final real-world outcomes (won/lost chargebacks, manual hold resolutions, or confirmed fraud) are routed backward into the Calibration engine.
+> 2. **Calibration ➔ Decision Router:** The Calibration engine mathematically recalculates the risk thresholds based on those outcomes, and feeds the updated rules backward into the Decision Router, allowing the system to continuously adapt without manual retraining.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- GETTING STARTED -->

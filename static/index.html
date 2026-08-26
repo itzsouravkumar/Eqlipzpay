@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EqlipZ Pay Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <h2>EqlipZ Pay</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-link active">Dashboard</a>
+                <a href="#" class="nav-link">Transactions</a>
+                <a href="#" class="nav-link">Risk Engine</a>
+                <a href="#" class="nav-link">Settings</a>
+            </nav>
+            <div class="sidebar-footer">
+                <p>Razorpay AI Buildathon</p>
+                <p class="muted">v1.0.0-beta</p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header">
+                <h1>Overview</h1>
+                <div class="header-actions">
+                    <button class="btn btn-outline">Export Report</button>
+                    <button class="btn btn-primary">Refresh Data</button>
+                </div>
+            </header>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3 class="stat-label">Total Transactions</h3>
+                    <p class="stat-value">1,248</p>
+                </div>
+                <div class="stat-card">
+                    <h3 class="stat-label">Agents Checked</h3>
+                    <p class="stat-value">342</p>
+                </div>
+                <div class="stat-card">
+                    <h3 class="stat-label">Escrow Holds</h3>
+                    <p class="stat-value alert-text">14</p>
+                </div>
+                <div class="stat-card">
+                    <h3 class="stat-label">Fraud Prevented</h3>
+                    <p class="stat-value success-text">₹ 42,500</p>
+                </div>
+            </div>
+
+            <!-- Content Grid -->
+            <div class="content-grid">
+                <!-- Transactions Feed -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Recent Transactions</h2>
+                        <a href="#" class="view-all">View All</a>
+                    </div>
+                    <div class="panel-content">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Payment ID</th>
+                                    <th>Source</th>
+                                    <th>Amount</th>
+                                    <th>Decision</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transaction-feed">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Risk Engine Activity -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Conformal Engine Log</h2>
+                    </div>
+                    <div class="panel-content log-container" id="risk-log">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
