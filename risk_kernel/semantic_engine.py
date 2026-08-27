@@ -168,11 +168,11 @@ class SemanticEntailmentEngine:
         cart total. Returns 1.0 if compliant, degrades as overshoot grows.
         """
         # Extract monetary values from intent
-        # Matches: Rs.80,000 / ₹80000 / Rs 80,000 / 80000 rupees / under 50k
+        # Matches: Rs.80,000 / ₹80000 / Rs 80,000 / 80000 rupees / under 50k / $300 / 300 usd
         budget_patterns = [
-            r"(?:under|below|max|budget|upto|up\s*to|within|less\s*than)\s*(?:rs\.?|₹|inr)?\s*([\d,]+(?:\.\d+)?)\s*(k)?",
-            r"(?:rs\.?|₹|inr)\s*([\d,]+(?:\.\d+)?)\s*(k)?",
-            r"([\d,]+(?:\.\d+)?)\s*(?:rupees|rs|inr)\s*(k)?",
+            r"(?:under|below|max|budget|upto|up\s*to|within|less\s*than)\s*(?:rs\.?|₹|inr|\$|usd)?\s*([\d,]+(?:\.\d+)?)\s*(k)?",
+            r"(?:rs\.?|₹|inr|\$|usd)\s*([\d,]+(?:\.\d+)?)\s*(k)?",
+            r"([\d,]+(?:\.\d+)?)\s*(?:rupees|rs|inr|usd|bucks)\s*(k)?",
         ]
         
         budgets = []
@@ -282,7 +282,7 @@ class SemanticEntailmentEngine:
         category_map = {
             "laptop": ["laptop", "notebook", "computer", "macbook", "chromebook"],
             "phone": ["phone", "mobile", "smartphone", "iphone", "android"],
-            "electronics": ["electronic", "gadget", "device", "charger", "cable"],
+            "electronics": ["electronic", "gadget", "device", "charger", "cable", "keyboard", "mouse", "monitor"],
             "clothing": ["shirt", "pant", "dress", "shoe", "wear", "jacket", "tshirt"],
             "food": ["food", "grocery", "snack", "meal", "drink", "beverage"],
             "book": ["book", "novel", "textbook", "ebook"],

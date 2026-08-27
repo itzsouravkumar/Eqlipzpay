@@ -102,33 +102,75 @@
             <!-- Transactions Tab -->
             <div id="tab-transactions" class="tab-pane" style="display: none;">
                 <header class="top-header">
-                    <h1>Transactions</h1>
+                    <h1>Transactions Ledger</h1>
+                    <div class="header-actions">
+                        <select id="txn-filter" class="btn btn-outline" style="border-radius: 0;">
+                            <option value="all">All Decisions</option>
+                            <option value="RELEASE">Released</option>
+                            <option value="HOLD">Held in Escrow</option>
+                            <option value="REFUSE">Refused/Refunded</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="loadTransactionsTab()">Refresh</button>
+                    </div>
                 </header>
-                <div class="panel" style="margin-top: 24px; padding: 48px; text-align: center;">
-                    <h2 style="color: var(--text-color); margin-bottom: 8px;">Detailed Ledger</h2>
-                    <p style="color: var(--text-muted);">Historical transaction reporting and export tools will be implemented here (Day 3).</p>
+                <div class="panel" style="margin-top: 24px;">
+                    <div class="panel-content">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Audit ID</th>
+                                    <th>Payment ID</th>
+                                    <th>Source</th>
+                                    <th>Amount</th>
+                                    <th>Decision</th>
+                                    <th>Reason Codes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="full-transaction-feed">
+                                <!-- Populated by live API data -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
             <!-- Risk Engine Tab -->
             <div id="tab-risk" class="tab-pane" style="display: none;">
                 <header class="top-header">
-                    <h1>Risk Engine Configuration</h1>
+                    <h1>Risk Engine</h1>
+                    <button class="btn btn-primary" onclick="loadEvaluation()">Load Metrics</button>
                 </header>
-                <div class="panel" style="margin-top: 24px; padding: 48px; text-align: center;">
-                    <h2 style="color: var(--text-color); margin-bottom: 8px;">Conformal & Semantic Settings</h2>
-                    <p style="color: var(--text-muted);">Live threshold tuning (alpha confidence levels, budget sensitivity) coming soon.</p>
+                
+                <div class="stats-grid" style="margin-top: 24px;" id="eval-metrics-grid">
+                    <!-- Populated by JS -->
+                </div>
+                
+                <div class="content-grid" style="margin-top: 24px; grid-template-columns: 1fr;">
+                    <section class="panel">
+                        <div class="panel-header">
+                            <h2>Evaluation Report (PRD §23.5)</h2>
+                        </div>
+                        <div class="panel-content" style="padding: 24px;" id="eval-report-content">
+                            <p class="muted">Loading evaluation data...</p>
+                        </div>
+                    </section>
                 </div>
             </div>
 
             <!-- Settings Tab -->
             <div id="tab-settings" class="tab-pane" style="display: none;">
                 <header class="top-header">
-                    <h1>Settings</h1>
+                    <h1>Settings & Config</h1>
                 </header>
-                <div class="panel" style="margin-top: 24px; padding: 48px; text-align: center;">
-                    <h2 style="color: var(--text-color); margin-bottom: 8px;">Platform Integrations</h2>
-                    <p style="color: var(--text-muted);">API key management and webhook configuration coming soon.</p>
+                <div class="content-grid" style="margin-top: 24px; grid-template-columns: 1fr;">
+                    <section class="panel">
+                        <div class="panel-header">
+                            <h2>Current Thresholds</h2>
+                        </div>
+                        <div class="panel-content" style="padding: 24px;">
+                            <pre id="config-json" style="background: #fafafa; padding: 16px; font-size: 14px; color: var(--text-secondary); border: 1px dashed var(--border-color);"></pre>
+                        </div>
+                    </section>
                 </div>
             </div>
 

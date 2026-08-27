@@ -143,6 +143,117 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ──────────────────────────────────────────────
+    // Day 3 APIs (Transactions, Risk, Settings Tabs)
+    // ──────────────────────────────────────────────
+    
+    window.loadTransactionsTab = async function() {
+        const feed = document.getElementById('full-transaction-feed');
+        if (!feed) return;
+        
+        const filter = document.getElementById('txn-filter') ? document.getElementById('txn-filter').value : 'all';
+        
+        try {
+            const res = await fetch('/api/transactions');
+            if (!res.ok) return;
+            let data = await res.json();
+            
+            if (filter !== 'all') {
+                data = data.filter(tx => tx.decision === filter);
+            }
+            
+            feed.innerHTML = '';
+            if (data.length === 0) {
+                feed.innerHTML = `<tr><td colspan="6" class="muted" style="text-align: center; padding: 24px;">No transactions found.</td></tr>`;
+                return;
+            }
+            
+            data.forEach(tx => {
+                const row = document.createElement('tr');
+                let badgeClass = 'badge-release';
+                if (tx.decision === 'HOLD') badgeClass = 'badge-hold';
+                if (tx.decision === 'REFUSE') badgeClass = 'badge-refuse';
+                
+                const amount = typeof tx.amount === 'number' 
+                    ? `₹ ${tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` 
+                    : tx.amount;
+                
+                row.innerHTML = `
+                    <td><code>${tx.audit_id.substring(0,8)}</code></td>
+                    <td><strong>${tx.payment_id}</strong></td>
+                    <td class="muted">${tx.source}</td>
+                    <td>${amount}</td>
+                    <td><span class="badge ${badgeClass}">${tx.decision}</span></td>
+                    <td class="muted" style="font-size: 0.8rem;">${tx.reason_codes.join(', ')}</td>
+                `;
+                feed.appendChild(row);
+            });
+        } catch (e) {
+            console.error('Failed to load transactions tab', e);
+        }
+    };
+    
+    window.loadEvaluation = async function() {
+        const grid = document.getElementById('eval-metrics-grid');
+        const content = document.getElementById('eval-report-content');
+        if (!grid || !content) return;
+        
+        try {
+            const res = await fetch('/api/evaluation');
+            if (!res.ok) return;
+            const data = await res.json();
+            
+            if (data.error) {
+                content.innerHTML = `<p class="alert-text">${data.error}</p>`;
+                return;
+            }
+            
+            grid.innerHTML = `
+                <div class="stat-card">
+                    <h3 class="stat-label">Coverage</h3>
+                    <p class="stat-value" style="color: var(--primary-color);">${data.metrics.conformal_coverage}</p>
+                </div>
+                <div class="stat-card">
+                    <h3 class="stat-label">Precision</h3>
+                    <p class="stat-value">${data.metrics.precision}</p>
+                </div>
+                <div class="stat-card">
+                    <h3 class="stat-label">Recall</h3>
+                    <p class="stat-value">${data.metrics.recall}</p>
+                </div>
+                <div class="stat-card">
+                    <h3 class="stat-label">False Positive Cost</h3>
+                    <p class="stat-value alert-text">${data.metrics.false_positive_cost_est}</p>
+                </div>
+            `;
+            
+            content.innerHTML = `
+                <table class="data-table">
+                    <tr><td width="30%"><strong>Dataset</strong></td><td>${data.dataset}</td></tr>
+                    <tr><td><strong>Model Type</strong></td><td>${data.model_type}</td></tr>
+                    <tr><td><strong>Evaluated Transactions</strong></td><td>${data.transactions_evaluated.toLocaleString()}</td></tr>
+                    <tr><td><strong>F1 Score</strong></td><td>${data.metrics.f1_score}</td></tr>
+                    <tr><td><strong>AUCPR</strong></td><td>${data.metrics.aucpr}</td></tr>
+                </table>
+            `;
+        } catch(e) {
+            console.error('Failed to load evaluation report', e);
+        }
+    };
+    
+    async function loadConfig() {
+        const el = document.getElementById('config-json');
+        if (!el) return;
+        try {
+            const res = await fetch('/api/config');
+            if (!res.ok) return;
+            const data = await res.json();
+            el.textContent = JSON.stringify(data, null, 4);
+        } catch(e) {
+            console.error('Failed to load config', e);
+        }
+    }
+
+    // ──────────────────────────────────────────────
     // Initial load + auto-refresh every 5 seconds
     // ──────────────────────────────────────────────
 
@@ -150,9 +261,22 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchTransactions();
         fetchRiskLog();
         fetchStats();
+        
+        // Also refresh tabs if they are active
+        if (document.getElementById('tab-transactions').style.display !== 'none') {
+            loadTransactionsTab();
+        }
+        if (document.getElementById('tab-settings').style.display !== 'none') {
+            loadConfig();
+        }
     }
 
     refreshAll();
+    // Only load evaluation on demand or if tab is active, since it reads disk
+    document.querySelector('[data-target="tab-risk"]').addEventListener('click', loadEvaluation);
+    document.querySelector('[data-target="tab-settings"]').addEventListener('click', loadConfig);
+    document.querySelector('[data-target="tab-transactions"]').addEventListener('click', loadTransactionsTab);
+
     setInterval(refreshAll, 5000);
 
     // Refresh Data button handler

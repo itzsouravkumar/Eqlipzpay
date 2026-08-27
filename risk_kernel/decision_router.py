@@ -278,3 +278,14 @@ class DecisionRouter:
             "fraud_prevented_amount": round(self._stats["fraud_prevented_amount"], 2),
             "held_amount": round(self._stats["held_amount"], 2),
         }
+    
+    def get_audit_by_payment(self, payment_id: str) -> Optional[Dict]:
+        """Look up the original prediction for a payment ID."""
+        for e in reversed(self._audit_log):
+            if e.payment_id == payment_id:
+                return {
+                    "action": e.decision.value,
+                    "prediction_set": e.prediction_set,
+                    "amount": e.amount,
+                }
+        return None
