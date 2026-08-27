@@ -10,3 +10,4 @@ kagglehub
 lightgbm
 joblib
 pyyaml
+google-genai>=2.3.0
