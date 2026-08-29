@@ -10,7 +10,7 @@ human originally asked for. This catches:
   3. Category mismatch: The agent buys items from wrong categories.
   4. Quantity anomalies: Unexpected quantities or items not mentioned.
 
-For Day 4, this uses the Gemini Interactions API for LLM-backed semantic evaluation,
+For Day 4, this uses the Groq API for LLM-backed semantic evaluation,
 falling back to the deterministic rule-based checks if no API key is provided.
 
 The engine is only invoked for AGENT transactions (MCP, AP2, UCP).
@@ -27,9 +27,9 @@ from collections import Counter
 from pydantic import BaseModel, Field
 
 try:
-    from google import genai
+    import groq
 except ImportError:
-    genai = None
+    groq = None
 
 from schemas import IntentAlignment
 
@@ -64,16 +64,16 @@ class SemanticEntailmentEngine:
         self.alignment_threshold = alignment_threshold
         self.mismatch_threshold = mismatch_threshold
         
-        # Initialize Gemini Client if API key is present
+        # Initialize Groq Client if API key is present
         self.client = None
-        if genai and os.environ.get("GEMINI_API_KEY"):
+        if groq and os.environ.get("GROQ_API_KEY"):
             try:
-                self.client = genai.Client()
-                logger.info("[Semantic Engine] Gemini LLM client initialized for Day 4 evaluation.")
+                self.client = groq.Groq()
+                logger.info("[Semantic Engine] Groq LLM client initialized for Day 4 evaluation.")
             except Exception as e:
-                logger.error(f"[Semantic Engine] Failed to initialize Gemini Client: {e}")
+                logger.error(f"[Semantic Engine] Failed to initialize Groq Client: {e}")
         else:
-            logger.info("[Semantic Engine] GEMINI_API_KEY not found or google-genai missing. Using Day 2 fallback rules.")
+            logger.info("[Semantic Engine] GROQ_API_KEY not found or groq missing. Using Day 2 fallback rules.")
             
         # Runtime stats
         self._stats = {
@@ -119,7 +119,7 @@ class SemanticEntailmentEngine:
         return self._check_alignment_rules(user_intent, cart_items)
         
     def _check_alignment_llm(self, user_intent: str, cart_items: List[Dict], agent_context: Optional[Dict] = None) -> Optional[Dict]:
-        """Use Gemini LLM with Structured Output to evaluate alignment."""
+        """Use Groq LLM with JSON Output to evaluate alignment."""
         prompt = f"""
 You are the semantic entailment evaluator for a trust layer payment gateway. 
 An AI agent has submitted a cart for purchase based on a user's intent.
@@ -128,22 +128,31 @@ Your job is to strictly evaluate if the cart perfectly matches the user's intent
 User Intent: "{user_intent}"
 Cart Items: {json.dumps(cart_items, indent=2)}
 
-Output a JSON object matching the requested schema. Pay special attention to:
+Output a JSON object matching this schema:
+{{
+  "alignment": "ALIGNED" | "MISMATCH" | "AMBIGUOUS",
+  "alignment_score": float (0.0 to 1.0),
+  "reason_codes": [string]
+}}
+
+Pay special attention to:
 1. Budget limits: If the cart total exceeds the budget in the intent, the score should be low and alignment should be MISMATCH.
 2. Category: If the user wants a gaming console but the cart has a mechanical keyboard, it's a MISMATCH.
 """
         try:
-            interaction = self.client.interactions.create(
-                model="gemini-3.6-flash",
-                input=prompt,
-                response_format={
-                    "type": "text",
-                    "mime_type": "application/json",
-                    "schema": SemanticAlignmentResult.model_json_schema()
-                }
+            chat_completion = self.client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                response_format={"type": "json_object"},
             )
             
-            result = SemanticAlignmentResult.model_validate_json(interaction.output_text)
+            result_json = json.loads(chat_completion.choices[0].message.content)
+            result = SemanticAlignmentResult(**result_json)
             
             # Map string to Enum
             try:
@@ -161,11 +170,11 @@ Output a JSON object matching the requested schema. Pay special attention to:
                 alignment_score=result.alignment_score,
                 alignment=alignment_enum,
                 reason_codes=result.reason_codes,
-                details={"llm_eval": result.alignment_score, "engine": "gemini"}
+                details={"llm_eval": result.alignment_score, "engine": "groq"}
             )
             
         except Exception as e:
-            logger.error(f"[Semantic Engine] Gemini evaluation error: {e}")
+            logger.error(f"[Semantic Engine] Groq evaluation error: {e}")
             return None
 
     def _check_alignment_rules(self, user_intent: str, cart_items: List[Dict]) -> Dict:
