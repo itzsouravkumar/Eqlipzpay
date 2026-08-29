@@ -377,3 +377,136 @@ body {
         display: none; /* Hide sidebar on mobile for now */
     }
 }
+
+/* MDN-Style Documentation Layout */
+.docs-container {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 24px;
+    margin-top: 24px;
+    height: calc(100vh - 120px);
+}
+
+.docs-sidebar {
+    background-color: var(--panel-bg);
+    padding: 16px 0;
+    overflow-y: auto;
+    border: 1px dashed var(--border-color);
+}
+
+.docs-sidebar-group {
+    margin-bottom: 16px;
+}
+
+.docs-sidebar-title {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 16px;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.docs-nav-link {
+    display: block;
+    padding: 8px 16px 8px 24px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.95rem;
+    border-left: 2px solid transparent;
+}
+
+.docs-nav-link:hover {
+    color: var(--primary-color);
+    background-color: rgba(67, 72, 232, 0.05);
+}
+
+.docs-nav-link.active {
+    color: var(--primary-color);
+    border-left: 2px solid var(--primary-color);
+    background-color: rgba(67, 72, 232, 0.08);
+    font-weight: 500;
+}
+
+.docs-content {
+    background-color: var(--panel-bg);
+    padding: 32px;
+    overflow-y: auto;
+    border: 1px dashed var(--border-color);
+}
+
+.doc-section {
+    display: none;
+    max-width: 800px;
+}
+
+.doc-section.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.doc-section h2 {
+    font-size: 1.8rem;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.doc-section h3 {
+    font-size: 1.4rem;
+    margin-top: 32px;
+    margin-bottom: 12px;
+}
+
+.doc-section p {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.doc-section ul {
+    margin-left: 24px;
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.doc-section code {
+    background-color: #f0f0f0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #e83e8c;
+}
+
+.doc-section pre {
+    background: #fafafa;
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow-x: auto;
+    margin-bottom: 24px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.endpoint-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-right: 8px;
+}
+
+.badge-post { background-color: rgba(40, 167, 69, 0.1); color: #28a745; }
+.badge-get { background-color: rgba(0, 123, 255, 0.1); color: #007bff; }
+.badge-webhook { background-color: rgba(111, 66, 193, 0.1); color: #6f42c1; }

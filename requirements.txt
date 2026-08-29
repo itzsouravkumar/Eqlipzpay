@@ -2,6 +2,7 @@ fastapi
 uvicorn
 pydantic
 requests
+httpx
 mapie
 scikit-learn
 numpy
@@ -12,3 +13,4 @@ joblib
 pyyaml
 google-genai>=2.3.0
 groq>=0.9.0
+

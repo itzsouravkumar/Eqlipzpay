@@ -21,11 +21,12 @@
                 <a href="#" class="nav-link active" data-target="tab-dashboard">Dashboard</a>
                 <a href="#" class="nav-link" data-target="tab-transactions">Transactions</a>
                 <a href="#" class="nav-link" data-target="tab-risk">Risk Engine</a>
+                <a href="#" class="nav-link" data-target="tab-docs">Documentation</a>
                 <a href="#" class="nav-link" data-target="tab-settings">Settings</a>
             </nav>
             <div class="sidebar-footer">
                 <p>Razorpay AI Buildathon</p>
-                <p class="muted">v2.0.0-day2</p>
+                <p class="muted">v5.0.0</p>
             </div>
         </aside>
 
@@ -154,6 +155,229 @@
                             <p class="muted">Loading evaluation data...</p>
                         </div>
                     </section>
+                </div>
+            </div>
+
+            <!-- Documentation Tab -->
+            <div id="tab-docs" class="tab-pane" style="display: none;">
+                <header class="top-header">
+                    <h1>EqlipZ Pay Documentation</h1>
+                    <div class="header-actions">
+                        <a href="/docs" target="_blank" class="btn btn-outline">Interactive Swagger API</a>
+                    </div>
+                </header>
+                
+                <div class="docs-container">
+                    <!-- MDN Style Sidebar -->
+                    <aside class="docs-sidebar">
+                        <div class="docs-sidebar-group">
+                            <div class="docs-sidebar-title">Getting Started</div>
+                            <a href="#" class="docs-nav-link active" data-doc="doc-overview">Overview</a>
+                            <a href="#" class="docs-nav-link" data-doc="doc-concepts">Core Concepts</a>
+                        </div>
+                        <div class="docs-sidebar-group">
+                            <div class="docs-sidebar-title">Integration APIs</div>
+                            <a href="#" class="docs-nav-link" data-doc="doc-risk-evaluate">Risk Evaluation</a>
+                            <a href="#" class="docs-nav-link" data-doc="doc-webhook">Razorpay Webhooks</a>
+                        </div>
+                        <div class="docs-sidebar-group">
+                            <div class="docs-sidebar-title">Dashboard APIs</div>
+                            <a href="#" class="docs-nav-link" data-doc="doc-transactions">Transactions</a>
+                            <a href="#" class="docs-nav-link" data-doc="doc-risk-log">Risk Log</a>
+                            <a href="#" class="docs-nav-link" data-doc="doc-metrics">Metrics & Eval</a>
+                        </div>
+                    </aside>
+
+                    <!-- Main Reading Area -->
+                    <main class="docs-content">
+                        
+                        <!-- Section: Overview -->
+                        <section id="doc-overview" class="doc-section active">
+                            <h2>Overview</h2>
+                            <p>
+                                EqlipZ Pay is risk and trust middleware for digital payments, built to mitigate settlement risk for Razorpay Route and AI agent protocols (AP2, UCP, MCP). It sits between a payment authorization and Razorpay's settlement rails.
+                            </p>
+                            <p>
+                                Instead of forcing a binary approve/decline decision when the system is unsure, it holds the money for a short, bounded window (max 48h) and uses a Conformal Risk Engine to provide mathematically guaranteed bounds on fraud probability.
+                            </p>
+                            <p>
+                                Get started by interacting with the <code>/v1/risk/evaluate</code> endpoint to score mock transactions, or point your Razorpay Webhooks to <code>/webhooks/razorpay</code> to process live payments.
+                            </p>
+                        </section>
+
+                        <!-- Section: Core Concepts -->
+                        <section id="doc-concepts" class="doc-section">
+                            <h2>Core Concepts</h2>
+                            
+                            <h3>Conformal Prediction</h3>
+                            <p>
+                                Traditional ML outputs a single point estimate (e.g. 84% fraud probability). Conformal prediction wraps this output in a set of labels (e.g. <code>{FRAUD, BENIGN}</code>) that contains the true label with a strict statistical guarantee (e.g. 90% confidence), regardless of data distribution. If the model is uncertain, it outputs a multi-class set, which our Decision Router interprets as a <strong>HOLD</strong>.
+                            </p>
+
+                            <h3>Semantic Entailment</h3>
+                            <p>
+                                An AI Agent might construct a cryptographically perfectly valid transaction that entirely ignores the user's instructions (e.g., buying a $2000 Macbook instead of a $200 Chromebook). The Semantic Engine uses an LLM to compare the <code>user_intent</code> against the executed <code>cart</code> to detect budget violations, category mismatches, and prompt injections.
+                            </p>
+                            
+                            <h3>Continuous Calibration</h3>
+                            <p>
+                                When Razorpay disputes are won or lost, or when held funds are released by a human reviewer, the real-world outcome is fed back into the Calibration Loop. This dynamically updates the Conformal Engine's thresholds, allowing it to adapt to changing fraud patterns without retraining the underlying model.
+                            </p>
+                        </section>
+
+                        <!-- Section: Risk Evaluate API -->
+                        <section id="doc-risk-evaluate" class="doc-section">
+                            <h2><span class="endpoint-badge badge-post">POST</span> <code>/v1/risk/evaluate</code></h2>
+                            
+                            <h3>Overview and Business Logic</h3>
+                            <p>
+                                The <code>/v1/risk/evaluate</code> endpoint is the core algorithmic heart of EqlipZ Pay. Unlike traditional payment gateways that rely on static rules or black-box ML models outputting a single probability score, this endpoint utilizes a combination of <strong>Conformal Risk Prediction</strong> and <strong>Semantic Entailment</strong> to evaluate transactions with strict mathematical guarantees.
+                            </p>
+                            <p>
+                                This API is designed to intercept a payment <em>before</em> it is fully captured by the settlement rails. By passing the transaction details and (if applicable) the AI agent's cart context to this endpoint, the system calculates a guaranteed prediction set.
+                            </p>
+                            <ul>
+                                <li><strong>For Human Transactions:</strong> The system relies solely on the Conformal Risk Engine to detect anomalies based on amount, frequency, and custom metadata.</li>
+                                <li><strong>For AI Agent Transactions:</strong> The system invokes an LLM-backed Semantic Engine to verify that the items added to the cart cryptographically match the human's original prompt.</li>
+                            </ul>
+                            
+                            <h3>Request Payload Details</h3>
+                            <pre>
+{
+  "transaction": {
+    "amount": 250.50,
+    "is_international": false,
+    "extra_features": {"device_id": "mob_123"}
+  },
+  "source": "AGENT_MCP",
+  "user_intent": "Please buy a high-quality mechanical keyboard under $300.",
+  "cart": [
+    {"name": "Keychron Q1 Pro", "price": 199.00, "quantity": 1}
+  ]
+}</pre>
+                            <ul>
+                                <li><strong>transaction</strong>: The core financial object. The <code>amount</code> drives the conformal risk calculation. You can optionally pass <code>is_international</code> or arbitrary keys via <code>extra_features</code>.</li>
+                                <li><strong>source</strong>: Dictates the evaluation pipeline. Valid values: <code>HUMAN</code>, <code>AGENT_MCP</code> (Model Context Protocol), <code>AGENT_AP2</code>, or <code>AGENT_UCP</code>.</li>
+                                <li><strong>user_intent</strong>: <em>(Required for Agents)</em> The exact, unaltered natural language prompt provided by the human user.</li>
+                                <li><strong>cart</strong>: <em>(Required for Agents)</em> An array of JSON objects representing the items the agent is attempting to purchase on behalf of the user.</li>
+                            </ul>
+
+                            <h3>Response Payload Details</h3>
+                            <p>
+                                The response dictates the immediate action your integration should take. The system employs a <strong>Decision Router</strong> to map the prediction sets to discrete financial actions.
+                            </p>
+                            <pre>
+{
+  "decision": "HOLD",
+  "risk_score": 0.71,
+  "intent_alignment": 0.43,
+  "prediction_set": ["BENIGN", "FRAUD"],
+  "reason_codes": ["intent_mismatch", "conformal_uncertainty"],
+  "audit_id": "aud_12345abcde"
+}</pre>
+                            <ul>
+                                <li><strong>decision</strong>: The final routed action. 
+                                    <ul>
+                                        <li><code>RELEASE</code>: Clear to capture.</li>
+                                        <li><code>HOLD</code>: The prediction set was uncertain. Route to Escrow for 48 hours.</li>
+                                        <li><code>REFUSE</code>: Hard fraud detected. Reverse or void the authorization.</li>
+                                    </ul>
+                                </li>
+                                <li><strong>prediction_set</strong>: A conformal array guaranteeing the true outcome (e.g. <code>["BENIGN", "FRAUD"]</code> means the model is uncertain).</li>
+                                <li><strong>intent_alignment</strong>: A float between 0 and 1 indicating how well the agent's cart matches the user's instructions. A score below 0.6 triggers a HOLD.</li>
+                            </ul>
+                        </section>
+
+                        <!-- Section: Razorpay Webhooks -->
+                        <section id="doc-webhook" class="doc-section">
+                            <h2><span class="endpoint-badge badge-webhook">WEBHOOK</span> <code>/webhooks/razorpay</code></h2>
+                            
+                            <h3>Overview and Integration Flow</h3>
+                            <p>
+                                The Razorpay Webhook endpoint allows EqlipZ Pay to operate entirely asynchronously as a passive listener, reacting to real-time events broadcast by Razorpay's infrastructure.
+                            </p>
+                            <p>
+                                By configuring Razorpay to point to this endpoint, EqlipZ Pay will listen specifically for <code>payment.authorized</code> and <code>payment.captured</code> events. Upon receipt, the webhook handler extracts the payment metadata, passes it through the Conformal Risk Kernel, and automatically uses the <strong>Route Transfer Client</strong> to execute an escrow hold or immediate release based on the decision.
+                            </p>
+                            
+                            <h3>Security and Authentication</h3>
+                            <ul>
+                                <li><strong>HMAC Signature Verification:</strong> All incoming webhook POST requests must include the <code>x-razorpay-signature</code> header.</li>
+                                <li><strong>Validation Process:</strong> EqlipZ Pay computes a SHA256 HMAC of the raw request body using your configured <code>RAZORPAY_WEBHOOK_SECRET</code> and compares it to the signature header.</li>
+                                <li><strong>Rejection:</strong> Any request missing the header or containing an invalid signature is immediately rejected with a <code>401 Unauthorized</code> status to prevent malicious spoofing.</li>
+                            </ul>
+
+                            <h3>Idempotency and Concurrency</h3>
+                            <ul>
+                                <li><strong>Duplicate Event Prevention:</strong> Razorpay guarantees at-least-once delivery, meaning you may receive the same webhook multiple times.</li>
+                                <li><strong>In-Memory Cache:</strong> The listener maintains a <code>processed_payments</code> set. If an event ID is already present, it returns a <code>200 OK</code> immediately without re-triggering the Risk Engine or executing a duplicate Route Transfer.</li>
+                            </ul>
+                        </section>
+
+                        <!-- Section: Transactions API -->
+                        <section id="doc-transactions" class="doc-section">
+                            <h2><span class="endpoint-badge badge-get">GET</span> <code>/api/transactions</code></h2>
+                            
+                            <h3>Overview</h3>
+                            <p>
+                                Fetches the recent transaction ledger for the web dashboard. The Decision Router stores a volatile in-memory log of every transaction evaluated by the Risk Engine. This endpoint paginates and retrieves that log for the real-time Transactions feed.
+                            </p>
+                            
+                            <h3>Query Parameters</h3>
+                            <ul>
+                                <li><code>filter</code> <em>(optional)</em>: A string to filter the ledger by decision outcome. Valid values are <code>all</code>, <code>RELEASE</code>, <code>HOLD</code>, or <code>REFUSE</code>. If omitted, defaults to <code>all</code>.</li>
+                            </ul>
+
+                            <h3>Response Payload Details</h3>
+                            <p>Returns a JSON array of transaction objects containing exact timestamps and reason codes.</p>
+                            <pre>
+[
+  {
+    "payment_id": "pay_OXYZ123456",
+    "amount": 250.50,
+    "source": "AGENT_MCP",
+    "decision": "HOLD",
+    "reason_codes": ["unusual_transaction", "intent_mismatch"],
+    "timestamp": "2026-08-29T10:00:00Z"
+  }
+]</pre>
+                        </section>
+
+                        <!-- Section: Risk Log API -->
+                        <section id="doc-risk-log" class="doc-section">
+                            <h2><span class="endpoint-badge badge-get">GET</span> <code>/api/risk-log</code></h2>
+                            
+                            <h3>Overview</h3>
+                            <p>
+                                Provides a real-time stream of diagnostic logs directly from the Risk Kernel's internal decision tree. This is highly useful for debugging why a specific transaction was held or refused.
+                            </p>
+                            
+                            <h3>Log Contents</h3>
+                            <ul>
+                                <li><strong>Semantic Details:</strong> Outputs the LLM reasoning if an agent's cart violates the user's instructions (e.g. <em>"Detected 0.42 intent mismatch due to budget violation"</em>).</li>
+                                <li><strong>Threshold Boundaries:</strong> Logs the exact Conformal Alpha value and the resulting prediction set (e.g. <em>"Set [BENIGN, FRAUD] resulted in HOLD"</em>).</li>
+                                <li><strong>Fallback Mechanics:</strong> Logs warnings when features are missing and the system safely defaults to mean imputation.</li>
+                            </ul>
+                        </section>
+
+                        <!-- Section: Metrics API -->
+                        <section id="doc-metrics" class="doc-section">
+                            <h2><span class="endpoint-badge badge-get">GET</span> <code>/api/metrics</code></h2>
+                            
+                            <h3>Overview</h3>
+                            <p>
+                                Returns the strict mathematical evaluation metrics calculated during the model's offline calibration phase. EqlipZ Pay generates a static <code>evaluation_results.json</code> artifact when trained against historical datasets (e.g. ULB Credit Card Fraud).
+                            </p>
+                            
+                            <h3>Key Metrics Returned</h3>
+                            <ul>
+                                <li><strong>Empirical Coverage:</strong> The actual percentage of transactions where the true label fell within the generated prediction set (should hover near the 90% target).</li>
+                                <li><strong>Precision & Recall:</strong> Standard binary classification metrics outlining the model's accuracy on the hold-out test set.</li>
+                                <li><strong>False Positive Cost:</strong> A simulated financial impact metric showing how much money would have been lost if the system forcefully refused transactions instead of using smart escrow holds.</li>
+                            </ul>
+                        </section>
+
+                    </main>
                 </div>
             </div>
 

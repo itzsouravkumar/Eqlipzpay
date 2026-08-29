@@ -115,8 +115,9 @@ description = """
 app = FastAPI(
     title="EqlipZ Pay API", 
     description=description,
-    version="3.0.0",
+    version="5.0.0",
     docs_url=None,
+    redoc_url=None,
     contact={
         "name": "EqlipZ Engineering",
         "url": "https://github.com/itzsouravkumar/Eqlipzpay",
@@ -151,7 +152,6 @@ async def startup_event():
     logger.info("EqlipZ Pay running locally")
     logger.info(f"Dashboard: http://127.0.0.1:{port}/dashboard")
     logger.info(f"API Docs (Swagger): http://127.0.0.1:{port}/docs")
-    logger.info(f"API Docs (ReDoc): http://127.0.0.1:{port}/redoc")
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -470,19 +470,59 @@ async def get_trust_passport(entity_id: str):
 
 @app.get("/api/transactions", tags=["Dashboard"])
 async def get_transactions():
-    """Returns the audit log for the dashboard transaction table."""
+    """
+    Returns the recent transaction ledger for the EqlipZ Pay dashboard.
+    
+    ## Overview
+    Fetches the recent transaction ledger for the web dashboard. The Decision Router stores a volatile in-memory log of every transaction evaluated by the Risk Engine. This endpoint paginates and retrieves that log for the real-time Transactions feed.
+    
+    ## Query Parameters
+    - `filter` *(optional)*: A string to filter the ledger by decision outcome. Valid values are `all`, `RELEASE`, `HOLD`, or `REFUSE`. If omitted, defaults to `all`.
+
+    ## Response Payload Details
+    Returns a JSON array of transaction objects containing exact timestamps and reason codes.
+    
+    ```json
+    [
+      {
+        "payment_id": "pay_OXYZ123456",
+        "amount": 250.50,
+        "source": "AGENT_MCP",
+        "decision": "HOLD",
+        "reason_codes": ["unusual_transaction", "intent_mismatch"],
+        "timestamp": "2026-08-29T10:00:00Z"
+      }
+    ]
+    ```
+    """
     return decision_router.get_audit_log(limit=50)
 
 
 @app.get("/api/risk-log", tags=["Dashboard"])
 async def get_risk_log():
-    """Returns engine log entries for the Conformal Engine Log panel."""
+    """
+    Returns a stream of internal logs detailing the Risk Engine's decision-making process.
+    
+    ## Overview
+    Provides a real-time stream of diagnostic logs directly from the Risk Kernel's internal decision tree. This is highly useful for debugging why a specific transaction was held or refused.
+    
+    ## Log Contents
+    - **Semantic Details:** Outputs the LLM reasoning if an agent's cart violates the user's instructions (e.g. *"Detected 0.42 intent mismatch due to budget violation"*).
+    - **Threshold Boundaries:** Logs the exact Conformal Alpha value and the resulting prediction set (e.g. *"Set [BENIGN, FRAUD] resulted in HOLD"*).
+    - **Fallback Mechanics:** Logs warnings when features are missing and the system safely defaults to mean imputation.
+    """
     return decision_router.get_risk_log(limit=20)
 
 
 @app.get("/api/stats", tags=["Dashboard"])
 async def get_dashboard_stats():
-    """Returns summary stats for the dashboard stat cards."""
+    """
+    Returns high-level summary stats for the dashboard scorecards.
+    
+    ## Description
+    Aggregates data across the Conformal Risk Engine, Semantic Engine, and Decision Router.
+    It calculates the total value of fraud prevented, the number of escrow holds active, and the current empirical coverage of the conformal predictors.
+    """
     router_stats = decision_router.get_stats()
     conformal_stats = conformal_engine.get_coverage_stats()
     semantic_stats = semantic_engine.get_stats()
@@ -509,7 +549,17 @@ async def get_dashboard_stats():
 
 @app.get("/api/evaluation", tags=["Dashboard"])
 async def get_evaluation():
-    """Returns the PRD evaluation report."""
+    """
+    Returns the pre-calculated PRD evaluation report metrics.
+    
+    ## Overview
+    Returns the strict mathematical evaluation metrics calculated during the model's offline calibration phase. EqlipZ Pay generates a static `evaluation_results.json` artifact when trained against historical datasets (e.g. ULB Credit Card Fraud).
+    
+    ## Key Metrics Returned
+    - **Empirical Coverage:** The actual percentage of transactions where the true label fell within the generated prediction set (should hover near the 90% target).
+    - **Precision & Recall:** Standard binary classification metrics outlining the model's accuracy on the hold-out test set.
+    - **False Positive Cost:** A simulated financial impact metric showing how much money would have been lost if the system forcefully refused transactions instead of using smart escrow holds.
+    """
     try:
         import json
         with open(Path(__file__).parent / "data" / "models" / "evaluation_results.json", "r") as f:
@@ -519,7 +569,12 @@ async def get_evaluation():
 
 @app.get("/api/config", tags=["Dashboard"])
 async def get_dashboard_config():
-    """Returns current thresholds."""
+    """
+    Returns the current Risk Engine thresholds and systemic configurations.
+    
+    ## Description
+    Outputs the global `config` object which includes maximum hold windows, strict AI agent source validation flags, and conformal alpha limits.
+    """
     return config
 
 
@@ -532,7 +587,7 @@ def read_root():
     return {
         "status": "operational",
         "service": "EqlipZ Pay",
-        "version": "3.0.0-day3",
+        "version": "5.0.0",
         "model_loaded": conformal_engine.is_loaded,
         "engines": {
             "conformal": "active",

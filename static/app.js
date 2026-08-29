@@ -29,6 +29,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ──────────────────────────────────────────────
+    // Inner Docs Navigation
+    // ──────────────────────────────────────────────
+    const docLinks = document.querySelectorAll('.docs-nav-link');
+    const docSections = document.querySelectorAll('.doc-section');
+
+    docLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // Update active link
+            docLinks.forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            
+            // Switch content section
+            const targetId = link.getAttribute('data-doc');
+            docSections.forEach(sec => {
+                if (sec.id === targetId) {
+                    sec.classList.add('active');
+                } else {
+                    sec.classList.remove('active');
+                }
+            });
+        });
+    });
+
+    // ──────────────────────────────────────────────
     // Fetch live data from the Risk API
     // ──────────────────────────────────────────────
 

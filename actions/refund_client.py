@@ -54,6 +54,11 @@ class RefundClient:
         self._idempotency_cache: Dict[str, Dict] = {}
         self._refund_log: list = []
         
+        self.client = httpx.Client(
+            auth=(self.key_id, self.key_secret) if not self.dry_run else None,
+            timeout=10.0,
+        )
+        
         if self.dry_run:
             logger.warning("[Refund] No Razorpay credentials. DRY-RUN mode.")
     
@@ -109,12 +114,10 @@ class RefundClient:
                 if notes:
                     payload["notes"] = notes
                 
-                resp = httpx.post(
+                resp = self.client.post(
                     f"{self.BASE_URL}/payments/{payment_id}/refund",
                     json=payload,
-                    auth=(self.key_id, self.key_secret),
                     headers={"X-Razorpay-Idempotency-Key": idem_key},
-                    timeout=10.0,
                 )
                 resp.raise_for_status()
                 data = resp.json()

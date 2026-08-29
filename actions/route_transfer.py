@@ -58,6 +58,11 @@ class RouteTransferClient:
         self.dry_run = not (self.key_id and self.key_secret)
         self._idempotency_cache: Dict[str, Dict] = {}  # payment_id → result
         
+        self.client = httpx.Client(
+            auth=(self.key_id, self.key_secret) if not self.dry_run else None,
+            timeout=10.0,
+        )
+        
         if self.dry_run:
             logger.warning(
                 "[Route Transfer] No Razorpay credentials found. "
@@ -137,12 +142,10 @@ class RouteTransferClient:
             )
         else:
             try:
-                resp = httpx.post(
+                resp = self.client.post(
                     f"{self.BASE_URL}/payments/{payment_id}/transfers",
                     json={"transfers": [payload]},
-                    auth=(self.key_id, self.key_secret),
                     headers={"X-Razorpay-Idempotency-Key": idem_key},
-                    timeout=10.0,
                 )
                 resp.raise_for_status()
                 data = resp.json()
@@ -211,11 +214,9 @@ class RouteTransferClient:
         
         try:
             payload = {"on_hold": 0 if release else 1}
-            resp = httpx.patch(
+            resp = self.client.patch(
                 f"{self.BASE_URL}/transfers/{transfer_id}",
                 json=payload,
-                auth=(self.key_id, self.key_secret),
-                timeout=10.0,
             )
             resp.raise_for_status()
             data = resp.json()

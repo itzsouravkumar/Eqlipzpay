@@ -5,3 +5,6 @@ __pycache__/
 .DS_Store
 venv/
 data/processed/**/*.parquet
+htmlcov/
+*.egg-info/
+

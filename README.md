@@ -59,6 +59,7 @@ Rather than forcing a binary approve/decline decision, EqlipZ Pay holds funds fo
 * [![FastAPI][fastapi-shield]][fastapi-url]
 * [![Scikit-Learn][scikit-shield]][scikit-url]
 * [![Pandas][pandas-shield]][pandas-url]
+* [![Groq][groq-shield]][groq-url]
 * [![Render][render-shield]][render-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -92,6 +93,7 @@ To get a local copy up and running follow these simple example steps.
 * Python 3.10+
 * Git
 * A Razorpay Developer Account
+* (Optional) A [Groq API Key](https://console.groq.com/) for LLM-backed semantic evaluation
 
 ### Installation
 
@@ -109,10 +111,11 @@ To get a local copy up and running follow these simple example steps.
    ```sh
    pip install -r requirements.txt
    ```
-4. Enter your API credentials in `config/razorpay_keys.env`
+4. Enter your API credentials in `.env`
    ```sh
    RAZORPAY_KEY_ID='YOUR_KEY_ID'
    RAZORPAY_KEY_SECRET='YOUR_KEY_SECRET'
+   GROQ_API_KEY='YOUR_GROQ_KEY'       # Optional: enables LLM-backed semantic engine
    ```
 5. Run the application
    ```sh
@@ -121,14 +124,43 @@ To get a local copy up and running follow these simple example steps.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- ROADMAP -->
+### Usage Example
+
+EqlipZ Pay intercepts payment events and scores them using conformal risk and semantic intent analysis. You can test it by POSTing directly to the evaluation endpoint.
+
+```bash
+curl -X POST http://127.0.0.1:10000/v1/risk/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction": {
+      "amount": 299.99,
+      "is_international": false
+    },
+    "source": "AGENT_MCP",
+    "user_intent": "Please buy a high-quality mechanical keyboard under $300.",
+    "cart": [
+      {"name": "Keychron Q1 Pro", "price": 199.00, "quantity": 1}
+    ]
+  }'
+```
+
+The system will return a mathematically guaranteed `prediction_set` and an actionable `decision` (RELEASE, HOLD, or REFUSE).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p><!-- ROADMAP -->
 ## Roadmap
 
-- [x] Initial Project Scaffolding
-- [x] Integrate Conformal Risk Engine
-- [ ] Implement Semantic Entailment validation for AI agents
-- [ ] Establish feedback loop with Razorpay Disputes API
-- [ ] Production deployment on Render
+- [x] Initial Project Scaffolding (schemas, ingestion, dashboard)
+- [x] Conformal Risk Engine with MAPIE calibration
+- [x] Semantic Entailment Engine for AI agent intent verification
+- [x] LLM-backed Semantic Engine via Groq (with rule-based fallback)
+- [x] Actions Layer (Route Transfer, Disputes, Refund clients)
+- [x] Feedback Loop — CalibrationJob + Trust Passport
+- [x] Reconciliation Sweeper (background hold auto-release)
+- [x] MCP/AP2/UCP Agent Proxy endpoint
+- [x] Interactive Dashboard with live stats
+- [x] Custom Swagger UI / API Playground
+
+- [x] Production deployment on Render
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -157,5 +189,8 @@ Project Link: [https://github.com/itzsouravkumar/Eqlipzpay](https://github.com/i
 [scikit-url]: https://scikit-learn.org/
 [pandas-shield]: https://img.shields.io/badge/pandas-150458?style=for-the-badge&logo=pandas&logoColor=white
 [pandas-url]: https://pandas.pydata.org/
+[groq-shield]: https://img.shields.io/badge/Groq-000000?style=for-the-badge&logo=groq&logoColor=white
+[groq-url]: https://groq.com/
 [render-shield]: https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white
 [render-url]: https://render.com/
+

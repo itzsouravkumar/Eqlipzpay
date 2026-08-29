@@ -57,6 +57,11 @@ class DisputesClient:
         # In-memory ledger of dispute outcomes for the calibration loop
         self._outcomes: List[Dict] = []
         
+        self.client = httpx.Client(
+            auth=(self.key_id, self.key_secret) if not self.dry_run else None,
+            timeout=10.0,
+        )
+        
         if self.dry_run:
             logger.warning(
                 "[Disputes] No Razorpay credentials. DRY-RUN mode."
@@ -79,10 +84,8 @@ class DisputesClient:
             logger.info(f"[Disputes] DRY-RUN: Would accept dispute {dispute_id}")
         else:
             try:
-                resp = httpx.post(
+                resp = self.client.post(
                     f"{self.BASE_URL}/disputes/{dispute_id}/accept",
-                    auth=(self.key_id, self.key_secret),
-                    timeout=10.0,
                 )
                 resp.raise_for_status()
                 data = resp.json()
@@ -133,11 +136,9 @@ class DisputesClient:
                 if evidence:
                     payload["documents"] = evidence
                 
-                resp = httpx.patch(
+                resp = self.client.patch(
                     f"{self.BASE_URL}/disputes/{dispute_id}/contest",
                     json=payload,
-                    auth=(self.key_id, self.key_secret),
-                    timeout=10.0,
                 )
                 resp.raise_for_status()
                 data = resp.json()
