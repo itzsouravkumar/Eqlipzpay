@@ -2,7 +2,7 @@ import logging
 import yaml
 from pathlib import Path
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 from ingestion.webhook_listener import router as webhook_router
@@ -582,8 +582,8 @@ async def get_dashboard_config():
 # Root + Docs
 # ──────────────────────────────────────────────
 
-@app.get("/")
-def read_root():
+@app.get("/api/health", tags=["System"])
+def health_check():
     return {
         "status": "operational",
         "service": "EqlipZ Pay",
@@ -597,6 +597,10 @@ def read_root():
             "sweeper": "active"
         },
     }
+
+@app.get("/", include_in_schema=False)
+def read_root():
+    return FileResponse("static/landing.html")
 
 
 @app.get("/docs", include_in_schema=False)

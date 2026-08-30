@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EqlipZ Pay</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+        body {
+            background-color: #F8F8F6;
+            background-image: 
+                linear-gradient(to right, #e2e2e2 1px, transparent 1px),
+                linear-gradient(to bottom, #e2e2e2 1px, transparent 1px);
+            background-size: 50px 50px;
+            color: #111;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            background-color: transparent;
+        }
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo-icon {
+            width: 24px;
+            height: 24px;
+            background-color: #111;
+            display: inline-block;
+            position: relative;
+        }
+        /* Make a crosshair-like logo */
+        .logo-icon::before, .logo-icon::after {
+            content: '';
+            position: absolute;
+            background-color: #F8F8F6;
+        }
+        .logo-icon::before { width: 8px; height: 24px; left: 8px; top: 0; }
+        .logo-icon::after { width: 24px; height: 8px; left: 0; top: 8px; }
+
+        .nav-links {
+            display: flex;
+            gap: 40px;
+        }
+        .nav-links a {
+            text-decoration: none;
+            color: #444;
+            font-weight: 400;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover {
+            color: #000;
+        }
+        .btn {
+            background-color: #111;
+            color: white;
+            padding: 12px 28px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            border: 1px solid #111;
+            border-radius: 0; /* No rounded boxes */
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: transparent;
+            color: #111;
+        }
+        
+        .hero {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 80px 20px;
+        }
+        
+        .hero-title {
+            font-size: 9vw;
+            font-weight: 800;
+            letter-spacing: 4px;
+            line-height: 1.1;
+            text-transform: uppercase;
+            
+            /* CSS trick to make the font look like a dotted matrix while staying as Outfit */
+            background-image: radial-gradient(circle, #111 35%, transparent 35%);
+            background-size: 10px 10px;
+            background-position: center;
+            color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+        
+        .graphic-container {
+            margin: 60px 0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .graphic-line {
+            position: absolute;
+            height: 1px;
+            width: 80vw;
+            background-color: #ccc;
+            z-index: -1;
+        }
+        .graphic-nodes {
+            position: absolute;
+            width: 80vw;
+            display: flex;
+            justify-content: space-between;
+            z-index: 0;
+        }
+        .node {
+            width: 6px;
+            height: 6px;
+            background-color: #111;
+            border-radius: 50%; /* standard for graph nodes */
+        }
+        
+        .graphic-box {
+            width: 140px;
+            height: 140px;
+            background-color: #ebebea;
+            border: 1px solid #dcdcdc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.03);
+            border-radius: 0;
+        }
+        .graphic-box .inner-logo {
+            width: 48px;
+            height: 48px;
+            background-color: #111;
+            position: relative;
+        }
+        .graphic-box .inner-logo::before, .graphic-box .inner-logo::after {
+            content: '';
+            position: absolute;
+            background-color: #ebebea;
+        }
+        .graphic-box .inner-logo::before { width: 16px; height: 48px; left: 16px; top: 0; }
+        .graphic-box .inner-logo::after { width: 48px; height: 16px; left: 0; top: 16px; }
+
+        .hero-subtitle {
+            font-size: 16px;
+            font-weight: 300;
+            color: #555;
+            max-width: 420px;
+            line-height: 1.6;
+            margin-top: 40px;
+            margin-bottom: 30px;
+        }
+        
+        .hero-ctas {
+            display: flex;
+            gap: 16px;
+        }
+        
+        .btn-outline {
+            background-color: transparent;
+            color: #111;
+        }
+        .btn-outline:hover {
+            background-color: #111;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">
+            <div class="logo-icon"></div>
+        </div>
+        <div class="nav-links">
+            <a href="https://github.com/itzsouravkumar/Eqlipzpay">Platform</a>
+            <a href="/api/health">System Status</a>
+        </div>
+        <a href="/docs" class="btn btn-outline" style="padding: 10px 24px;">API Docs</a>
+    </nav>
+
+    <main class="hero">
+        
+        <div class="hero-title">RISK. TRUST.</div>
+        
+        <div class="graphic-container">
+            <div class="graphic-line"></div>
+            <div class="graphic-nodes">
+                <div class="node"></div>
+                <div class="node"></div>
+                <div class="node"></div>
+                <div class="node"></div>
+            </div>
+            <div class="graphic-box">
+                <div class="inner-logo"></div>
+            </div>
+        </div>
+
+        <div class="hero-title">PAY.</div>
+
+        <p class="hero-subtitle">
+            EqlipZ Pay brings AI to a new era of digital payments beyond the traditional approve and decline binary.
+        </p>
+
+        <div class="hero-ctas">
+            <a href="/dashboard" class="btn">Launch Dashboard</a>
+            <a href="/docs" class="btn btn-outline">Read Documentation</a>
+        </div>
+        
+    </main>
+
+</body>
+</html>

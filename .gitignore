@@ -7,4 +7,4 @@ venv/
 data/processed/**/*.parquet
 htmlcov/
 *.egg-info/
-
+pitchdeck_script.md
