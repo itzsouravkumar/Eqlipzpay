@@ -13,11 +13,13 @@ app can import and use them directly.
 """
 
 from risk_kernel.conformal_engine import ConformalRiskEngine
-from risk_kernel.semantic_engine import SemanticEntailmentEngine
-from risk_kernel.decision_router import DecisionRouter
+from risk_kernel.intent_firewall import IntentFirewall
+from risk_kernel.policy_control_plane import PolicyControlPlane
+from risk_kernel.exposure_engine import ExposureEngine
 
 __all__ = [
     "ConformalRiskEngine",
-    "SemanticEntailmentEngine",
-    "DecisionRouter",
+    "IntentFirewall",
+    "PolicyControlPlane",
+    "ExposureEngine",
 ]

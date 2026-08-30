@@ -53,13 +53,13 @@
   <text x="360" y="325" class="text-desc">Bounded Confidence Scoring</text>
 
   <rect x="530" y="280" width="220" height="60" class="node" />
-  <text x="640" y="305" class="text-title">Semantic Entailment</text>
+  <text x="640" y="305" class="text-title">Intent Firewall</text>
   <text x="640" y="325" class="text-desc">Agent Intent Verification</text>
 
   <!-- Router -->
   <rect x="400" y="380" width="200" height="60" class="highlight-node" />
-  <text x="500" y="405" class="text-title">Decision Router</text>
-  <text x="500" y="425" class="text-desc">Release, Refuse, Hold</text>
+  <text x="500" y="405" class="text-title">Policy Control Plane</text>
+  <text x="500" y="425" class="text-desc">Exposure (E*) &amp; Routing</text>
 
   <!-- Outcomes -->
   <rect x="200" y="480" width="160" height="60" class="action-node" />

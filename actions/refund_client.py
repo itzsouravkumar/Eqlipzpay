@@ -18,23 +18,30 @@ from typing import Dict, Optional
 logger = logging.getLogger("eqlipz.actions.refund")
 
 ENV_PATH = Path(__file__).resolve().parent.parent / "config" / "razorpay_keys.env"
-
+ROOT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
 def _load_razorpay_keys() -> tuple:
+    """Load Razorpay API credentials from .env or config/razorpay_keys.env."""
     key_id = os.environ.get("RAZORPAY_KEY_ID")
     key_secret = os.environ.get("RAZORPAY_KEY_SECRET")
-    if not key_id and ENV_PATH.exists():
-        with open(ENV_PATH) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                v = v.strip().strip("'\"")
-                if k.strip() == "RAZORPAY_KEY_ID":
-                    key_id = v
-                elif k.strip() == "RAZORPAY_KEY_SECRET":
-                    key_secret = v
+    
+    if not key_id:
+        for path in [ROOT_ENV_PATH, ENV_PATH]:
+            if path.exists():
+                with open(path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        v = v.strip().strip("'\"")
+                        if k.strip() == "RAZORPAY_KEY_ID":
+                            key_id = v
+                        elif k.strip() == "RAZORPAY_KEY_SECRET":
+                            key_secret = v
+                if key_id:
+                    break
+    
     return key_id, key_secret
 
 
@@ -50,17 +57,20 @@ class RefundClient:
     
     def __init__(self):
         self.key_id, self.key_secret = _load_razorpay_keys()
-        self.dry_run = not (self.key_id and self.key_secret)
+        if not self.key_id or not self.key_secret:
+            raise RuntimeError(
+                "[Refund] Configuration Error: Razorpay credentials "
+                "(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET) are missing. EqlipZ Pay requires live API keys."
+            )
+            
         self._idempotency_cache: Dict[str, Dict] = {}
         self._refund_log: list = []
         
         self.client = httpx.Client(
-            auth=(self.key_id, self.key_secret) if not self.dry_run else None,
+            auth=(self.key_id, self.key_secret),
             timeout=10.0,
         )
-        
-        if self.dry_run:
-            logger.warning("[Refund] No Razorpay credentials. DRY-RUN mode.")
+        logger.info("[Refund] Razorpay credentials loaded. Live mode.")
     
     def _idempotency_key(self, payment_id: str, reason: str) -> str:
         raw = f"refund:{payment_id}:{reason}"
@@ -92,49 +102,34 @@ class RefundClient:
             logger.info(f"[Refund] Idempotent hit for {payment_id}")
             return self._idempotency_cache[idem_key]
         
-        if self.dry_run:
+        try:
+            payload = {"speed": "normal"}
+            if amount:
+                payload["amount"] = amount
+            if notes:
+                payload["notes"] = notes
+            
+            resp = self.client.post(
+                f"{self.BASE_URL}/payments/{payment_id}/refund",
+                json=payload,
+                headers={"X-Razorpay-Idempotency-Key": idem_key},
+            )
+            resp.raise_for_status()
+            data = resp.json()
             result = {
-                "refund_id": f"rfnd_dry_{payment_id[-8:]}",
+                "refund_id": data.get("id", "unknown"),
                 "payment_id": payment_id,
-                "amount": amount,
+                "amount": data.get("amount", amount),
                 "reason": reason,
-                "status": "processed (dry-run)",
-                "dry_run": True,
+                "status": data.get("status", "processed"),
+                "dry_run": False,
                 "timestamp": datetime.now().isoformat(),
             }
             logger.info(
-                f"[Refund] DRY-RUN: Would refund {payment_id} "
-                f"amount={amount} reason={reason}"
+                f"[Refund] Created refund {result['refund_id']} "
+                f"for {payment_id}"
             )
-        else:
-            try:
-                payload = {"speed": "normal"}
-                if amount:
-                    payload["amount"] = amount
-                if notes:
-                    payload["notes"] = notes
-                
-                resp = self.client.post(
-                    f"{self.BASE_URL}/payments/{payment_id}/refund",
-                    json=payload,
-                    headers={"X-Razorpay-Idempotency-Key": idem_key},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                result = {
-                    "refund_id": data.get("id", "unknown"),
-                    "payment_id": payment_id,
-                    "amount": data.get("amount", amount),
-                    "reason": reason,
-                    "status": data.get("status", "processed"),
-                    "dry_run": False,
-                    "timestamp": datetime.now().isoformat(),
-                }
-                logger.info(
-                    f"[Refund] Created refund {result['refund_id']} "
-                    f"for {payment_id}"
-                )
-            except Exception as e:
+        except Exception as e:
                 logger.error(f"[Refund] Error for {payment_id}: {e}")
                 result = {
                     "refund_id": None,

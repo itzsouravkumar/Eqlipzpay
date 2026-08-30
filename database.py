@@ -22,13 +22,17 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 1. Trust Passports
+    # 1. Trust Passports (Contextual Trust Graph)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS trust_passports (
-            entity_hash TEXT PRIMARY KEY,
-            benign_count INTEGER DEFAULT 0,
-            cleared_holds INTEGER DEFAULT 0,
-            disputes_lost INTEGER DEFAULT 0,
+            entity_id TEXT PRIMARY KEY,
+            risk_band TEXT NOT NULL,
+            contexts TEXT NOT NULL, -- JSON encoded list of ContextualTrust
+            success_count INTEGER DEFAULT 0,
+            dispute_count INTEGER DEFAULT 0,
+            fraud_count INTEGER DEFAULT 0,
+            credential_hash TEXT NOT NULL,
+            version TEXT DEFAULT '1',
             created_at TEXT NOT NULL,
             last_updated TEXT NOT NULL
         )
@@ -86,6 +90,59 @@ def init_db():
             true_positives INTEGER NOT NULL,
             fn_cost REAL NOT NULL,
             fp_cost REAL NOT NULL
+        )
+    ''')
+
+    # 6. Evidence Capsules
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS evidence_capsules (
+            transaction_id TEXT PRIMARY KEY,
+            intent_hash TEXT NOT NULL,
+            mandate_hash TEXT NOT NULL,
+            risk_policy_version TEXT NOT NULL,
+            prediction_set TEXT NOT NULL, -- JSON list
+            decision TEXT NOT NULL,
+            settlement_action TEXT NOT NULL,
+            review_verdict TEXT,
+            outcome_hash TEXT,
+            previous_hash TEXT,
+            created_at TEXT NOT NULL
+        )
+    ''')
+
+    # 7. Agent Budgets
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS agent_budgets (
+            agent_id TEXT PRIMARY KEY,
+            daily_limit INTEGER NOT NULL,
+            transaction_limit INTEGER NOT NULL,
+            allowed_categories TEXT NOT NULL, -- JSON list
+            allowed_regions TEXT NOT NULL, -- JSON list
+            max_merchant_risk TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_updated TEXT NOT NULL
+        )
+    ''')
+
+    # 8. Merchant Liquidity
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS merchant_liquidity (
+            merchant_id TEXT PRIMARY KEY,
+            available_balance REAL NOT NULL,
+            locked_escrow REAL NOT NULL,
+            risk_tier TEXT NOT NULL,
+            last_updated TEXT NOT NULL
+        )
+    ''')
+
+    # 9. Network Velocity
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS network_velocity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            transaction_count INTEGER NOT NULL,
+            volume_amount REAL NOT NULL,
+            anomaly_score REAL NOT NULL
         )
     ''')
 

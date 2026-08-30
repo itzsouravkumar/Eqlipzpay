@@ -19,24 +19,29 @@ logger = logging.getLogger("eqlipz.actions.transfer")
 
 # Load Razorpay keys from env file
 ENV_PATH = Path(__file__).resolve().parent.parent / "config" / "razorpay_keys.env"
+ROOT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
 def _load_razorpay_keys() -> tuple:
-    """Load Razorpay API credentials from config/razorpay_keys.env."""
+    """Load Razorpay API credentials from .env or config/razorpay_keys.env."""
     key_id = os.environ.get("RAZORPAY_KEY_ID")
     key_secret = os.environ.get("RAZORPAY_KEY_SECRET")
     
-    if not key_id and ENV_PATH.exists():
-        with open(ENV_PATH) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                v = v.strip().strip("'\"")
-                if k.strip() == "RAZORPAY_KEY_ID":
-                    key_id = v
-                elif k.strip() == "RAZORPAY_KEY_SECRET":
-                    key_secret = v
+    if not key_id:
+        for path in [ROOT_ENV_PATH, ENV_PATH]:
+            if path.exists():
+                with open(path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        v = v.strip().strip("'\"")
+                        if k.strip() == "RAZORPAY_KEY_ID":
+                            key_id = v
+                        elif k.strip() == "RAZORPAY_KEY_SECRET":
+                            key_secret = v
+                if key_id:
+                    break
     
     return key_id, key_secret
 
@@ -55,21 +60,19 @@ class RouteTransferClient:
     
     def __init__(self):
         self.key_id, self.key_secret = _load_razorpay_keys()
-        self.dry_run = not (self.key_id and self.key_secret)
+        if not self.key_id or not self.key_secret:
+            raise RuntimeError(
+                "[Route Transfer] Configuration Error: Razorpay credentials "
+                "(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET) are missing. EqlipZ Pay requires live API keys."
+            )
+        
         self._idempotency_cache: Dict[str, Dict] = {}  # payment_id → result
         
         self.client = httpx.Client(
-            auth=(self.key_id, self.key_secret) if not self.dry_run else None,
+            auth=(self.key_id, self.key_secret),
             timeout=10.0,
         )
-        
-        if self.dry_run:
-            logger.warning(
-                "[Route Transfer] No Razorpay credentials found. "
-                "Operating in DRY-RUN mode (no real API calls)."
-            )
-        else:
-            logger.info("[Route Transfer] Razorpay credentials loaded. Live mode.")
+        logger.info("[Route Transfer] Razorpay credentials loaded. Live mode.")
     
     def _idempotency_key(self, payment_id: str, action: str) -> str:
         """Generate a deterministic idempotency key from payment_id + action."""
@@ -124,66 +127,49 @@ class RouteTransferClient:
             if hold_until:
                 payload["on_hold_until"] = int(hold_until.timestamp())
         
-        if self.dry_run:
+        try:
+            resp = self.client.post(
+                f"{self.BASE_URL}/payments/{payment_id}/transfers",
+                json={"transfers": [payload]},
+                headers={"X-Razorpay-Idempotency-Key": idem_key},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            transfer = data.get("items", [{}])[0] if "items" in data else data
             result = {
-                "transfer_id": f"trf_dry_{payment_id[-8:]}",
+                "transfer_id": transfer.get("id", "unknown"),
                 "payment_id": payment_id,
                 "amount": amount,
                 "account": account_id,
                 "on_hold": hold,
-                "on_hold_until": hold_until.isoformat() if hold_until else None,
-                "status": "created (dry-run)",
-                "dry_run": True,
+                "status": transfer.get("status", "created"),
+                "dry_run": False,
             }
             logger.info(
-                f"[Route Transfer] DRY-RUN: Would create transfer "
-                f"for {payment_id} → {account_id} amount={amount} "
-                f"hold={hold}"
+                f"[Route Transfer] Created transfer "
+                f"{result['transfer_id']} for {payment_id}"
             )
-        else:
-            try:
-                resp = self.client.post(
-                    f"{self.BASE_URL}/payments/{payment_id}/transfers",
-                    json={"transfers": [payload]},
-                    headers={"X-Razorpay-Idempotency-Key": idem_key},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                transfer = data.get("items", [{}])[0] if "items" in data else data
-                result = {
-                    "transfer_id": transfer.get("id", "unknown"),
-                    "payment_id": payment_id,
-                    "amount": amount,
-                    "account": account_id,
-                    "on_hold": hold,
-                    "status": transfer.get("status", "created"),
-                    "dry_run": False,
-                }
-                logger.info(
-                    f"[Route Transfer] Created transfer "
-                    f"{result['transfer_id']} for {payment_id}"
-                )
-            except httpx.HTTPStatusError as e:
-                logger.error(
-                    f"[Route Transfer] API error for {payment_id}: "
-                    f"{e.response.status_code} {e.response.text}"
-                )
-                result = {
-                    "transfer_id": None,
-                    "payment_id": payment_id,
-                    "error": str(e),
-                    "status": "failed",
-                    "dry_run": False,
-                }
-            except Exception as e:
-                logger.error(f"[Route Transfer] Error for {payment_id}: {e}")
-                result = {
-                    "transfer_id": None,
-                    "payment_id": payment_id,
-                    "error": str(e),
-                    "status": "failed",
-                    "dry_run": False,
-                }
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"[Route Transfer] API error for {payment_id}: "
+                f"{e.response.status_code} {e.response.text}"
+            )
+            result = {
+                "transfer_id": None,
+                "payment_id": payment_id,
+                "error": str(e),
+                "status": "failed",
+                "dry_run": False,
+            }
+        except Exception as e:
+            logger.error(f"[Route Transfer] Error for {payment_id}: {e}")
+            result = {
+                "transfer_id": None,
+                "payment_id": payment_id,
+                "error": str(e),
+                "status": "failed",
+                "dry_run": False,
+            }
         
         self._idempotency_cache[idem_key] = result
         return result
@@ -200,18 +186,6 @@ class RouteTransferClient:
             transfer_id: The Razorpay transfer ID.
             release: If True, releases the hold. If False, could extend (not implemented).
         """
-        if self.dry_run:
-            action = "released" if release else "extended"
-            logger.info(
-                f"[Route Transfer] DRY-RUN: Would {action} hold on {transfer_id}"
-            )
-            return {
-                "transfer_id": transfer_id,
-                "action": action,
-                "status": f"{action} (dry-run)",
-                "dry_run": True,
-            }
-        
         try:
             payload = {"on_hold": 0 if release else 1}
             resp = self.client.patch(

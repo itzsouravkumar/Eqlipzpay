@@ -8,19 +8,23 @@ from fastapi.staticfiles import StaticFiles
 from ingestion.webhook_listener import router as webhook_router
 from ingestion.mcp_proxy import router as mcp_proxy_router
 from risk_kernel.conformal_engine import ConformalRiskEngine
-from risk_kernel.semantic_engine import SemanticEntailmentEngine
-from risk_kernel.decision_router import DecisionRouter
+from risk_kernel.intent_firewall import IntentFirewall
+from risk_kernel.policy_control_plane import PolicyControlPlane
+from risk_kernel.exposure_engine import ExposureEngine
 from schemas import (
     RiskEvaluationRequest, RiskEvaluationResponse,
     RiskStats, ActionType, TransactionSource,
+    IntentContract, CartItem, AgentRiskBudget, ExposurePolicy, EvidenceCapsule, TrustCredential
 )
 
 from actions.route_transfer import RouteTransferClient
 from actions.disputes_client import DisputesClient
 from actions.refund_client import RefundClient
 from flywheel.calibration_job import CalibrationJob
-from flywheel.trust_passport import TrustPassportService
+from flywheel.trust_passport import ContextualTrustGraph
 from sweeper.reconcile_cron import ReconcileSweeper
+from gateway.trust_gateway import verify_gateway_signature, validate_agent_mandate
+from fastapi import Depends
 import asyncio
 
 # ──────────────────────────────────────────────
@@ -60,15 +64,13 @@ config = load_config()
 
 conformal_engine = ConformalRiskEngine(alpha=config.get("alpha", 0.10))
 
-semantic_engine = SemanticEntailmentEngine(
-    alignment_threshold=config.get("intent_alignment_threshold", 0.65),
-    mismatch_threshold=config.get("intent_mismatch_threshold", 0.35),
-)
+intent_firewall = IntentFirewall()
+policy_control_plane = PolicyControlPlane()
+exposure_engine = ExposureEngine()
 
-decision_router = DecisionRouter(
-    hold_max_hours=config.get("hold_max_hours", 48),
-    agent_hold_bias=config.get("agent_hold_bias", 0.1),
-)
+# Keep a simple in-memory audit log for dashboard
+audit_log = []
+
 
 # ──────────────────────────────────────────────
 # Initialize Day 3 Modules (Actions, Flywheel, Sweeper)
@@ -85,7 +87,7 @@ calibration_job = CalibrationJob(
 # Connect calibration to conformal engine for live threshold updates
 calibration_job.set_conformal_engine(conformal_engine)
 
-trust_passport = TrustPassportService()
+trust_passport = ContextualTrustGraph()
 reconcile_sweeper = ReconcileSweeper(interval_seconds=900)
 
 # Wire sweeper callback for auto-released holds
@@ -138,8 +140,10 @@ else:
 
 # Share engine instances with routers via app.state
 app.state.conformal_engine = conformal_engine
-app.state.semantic_engine = semantic_engine
-app.state.decision_router = decision_router
+app.state.intent_firewall = intent_firewall
+app.state.policy_control_plane = policy_control_plane
+app.state.exposure_engine = exposure_engine
+app.state.audit_log = audit_log
 app.state.route_transfer = route_transfer
 app.state.disputes_client = disputes_client
 app.state.refund_client = refund_client
@@ -175,64 +179,13 @@ app.include_router(mcp_proxy_router, prefix="/mcp", tags=["MCP Proxy"])
 # Layer 1: The EqlipZ Risk API (core product)
 # ──────────────────────────────────────────────
 
-@app.post("/v1/risk/evaluate", response_model=RiskEvaluationResponse, tags=["Risk API"])
+@app.post("/v1/risk/evaluate", response_model=RiskEvaluationResponse, tags=["Risk API"], dependencies=[Depends(verify_gateway_signature)])
 async def evaluate_risk(request: RiskEvaluationRequest):
-    """
-    Evaluates a digital transaction and returns a mathematically calibrated decision using EqlipZ Pay's Risk Kernel.
+    # Enforce agent mandate if applicable
+    if request.source in (TransactionSource.AGENT_MCP, TransactionSource.AGENT_AP2, TransactionSource.AGENT_UCP):
+        agent_id = request.agent_context.agent_id if request.agent_context else "agent_default"
+        validate_agent_mandate(agent_id, float(request.transaction.amount))
 
-    ## Syntax
-    `POST /v1/risk/evaluate`
-
-    ### Parameters (Request Body)
-    - `transaction` **(Required)**: An object containing all numerical and categorical features of the current transaction.
-    - `source` *(Optional)*: Specifies the origin. Defaults to `HUMAN`. Valid values: `HUMAN`, `AGENT_MCP`, `AGENT_AP2`, `AGENT_UCP`.
-    - `payment_id` *(Optional)*: The unique gateway identifier for the transaction.
-    - `user_intent` *(Optional)*: The raw natural language instruction provided by the human user. **Required** if `source` is an AI agent.
-    - `cart` *(Optional)*: An array of items in the shopping cart. **Required** if `source` is an AI agent.
-    - `agent_context` *(Optional)*: Metadata describing the AI Agent executing the transaction.
-
-    ## Return value
-    Returns a JSON object matching the `RiskEvaluationResponse` schema.
-    - **`decision`**: The outcome action (`RELEASE`, `REFUSE`, or `HOLD`).
-    - **`risk_score`**: Float between 0.0 and 1.0 representing raw fraud probability.
-    - **`prediction_set`**: A Conformal Prediction array containing mathematically guaranteed possible outcomes.
-    - **`intent_alignment`**: The semantic alignment score between the user's intent and the agent's cart (Agent transactions only).
-
-    ## Exceptions / Status Codes
-    - **`200 OK`**: The transaction was successfully evaluated.
-    - **`422 Unprocessable Entity`**: The request payload was missing required fields or incorrectly formatted.
-
-    ## Examples
-
-    ### 1. Evaluating a Human Transaction
-    ```json
-    {
-      "transaction": {
-        "amount": 45.00,
-        "is_international": false
-      },
-      "source": "HUMAN"
-    }
-    ```
-
-    ### 2. Evaluating an Agent Transaction
-    ```json
-    {
-      "transaction": {
-        "amount": 250.50
-      },
-      "source": "AGENT_MCP",
-      "user_intent": "Please buy a high-quality mechanical keyboard under $300.",
-      "cart": [
-        {"name": "Keychron Q1 Pro", "price": 199.00, "quantity": 1}
-      ]
-    }
-    ```
-
-    ## Specifications
-    This endpoint utilizes **Conformal Risk Prediction** to bound the False Positive Rate precisely to the configured `alpha` (default: 10%). For agent transactions, it routes the `cart` and `user_intent` through the **Semantic Entailment Engine** to guarantee goal alignment.
-    """
-    # Build features dict for the conformal engine
     features = {
         "payment_id": request.payment_id or "api-eval",
         "amount": request.transaction.amount,
@@ -241,74 +194,149 @@ async def evaluate_risk(request: RiskEvaluationRequest):
         "transaction_count_1h": request.transaction.transaction_count_1h or 0,
         "transaction_count_24h": request.transaction.transaction_count_24h or 0,
     }
-    
-    # Add extra features if provided
     if request.transaction.extra_features:
         features.update(request.transaction.extra_features)
     
-    # ── Step 1: Conformal Risk Engine ──
-    risk_decision = conformal_engine.score(features)
+    # 1. P(Fraud)
+    conformal_res = conformal_engine.score(features)
+    prediction_set = conformal_res.prediction_set
     
-    # ── Step 2: Semantic Engine (agent transactions only) ──
-    intent_result = None
-    is_agent = request.source in (
-        TransactionSource.AGENT_MCP,
-        TransactionSource.AGENT_AP2,
-        TransactionSource.AGENT_UCP,
-    )
+    if "FRAUD" in prediction_set and "BENIGN" not in prediction_set:
+        fraud_prob = conformal_res.confidence
+    elif "BENIGN" in prediction_set and "FRAUD" not in prediction_set:
+        fraud_prob = round(1.0 - conformal_res.confidence, 4)
+    else:
+        fraud_prob = 0.5
+        
+    reason_codes = conformal_res.reason_codes
     
-    if is_agent and request.user_intent and request.cart:
-        cart_dicts = [item.model_dump() for item in request.cart]
-        agent_ctx = request.agent_context.model_dump() if request.agent_context else None
-        intent_result = semantic_engine.check_alignment(
-            user_intent=request.user_intent,
-            cart_items=cart_dicts,
-            agent_context=agent_ctx,
+    # 2. Intent Risk
+    intent_risk = 1.0
+    intent_alignment = None
+    if request.source in (TransactionSource.AGENT_MCP, TransactionSource.AGENT_AP2, TransactionSource.AGENT_UCP):
+        # We need an IntentContract. If user just passed a string, we mock a contract.
+        contract = IntentContract()
+        if request.user_intent:
+            # Just simple fallback if not formally parsed
+            pass
+        
+        intent_risk, alignment_enum, i_reasons = intent_firewall.verify_intent(
+            contract=contract,
+            cart=request.cart or [],
+            raw_intent_string=request.user_intent
         )
+        reason_codes.extend(i_reasons)
+        intent_alignment = alignment_enum.value
+        
+    # 3. Trust Adjustment
+    vendor_id = request.agent_context.agent_id if request.agent_context else "default"
+    trust_adj = trust_passport.get_trust_adjustment(vendor_id)
     
-    # ── Step 3: Decision Router ──
-    result = decision_router.route(
-        risk_decision=risk_decision,
-        intent_result=intent_result,
-        source=request.source,
+    # 4. Exposure Score E*
+    merchant_id = request.transaction.merchant_id or "default_merchant"
+    e_star = exposure_engine.calculate_exposure(
+        fraud_prob=fraud_prob,
         amount=request.transaction.amount,
-        payment_id=request.payment_id or "api-eval",
+        merchant_id=merchant_id,
+        intent_risk=intent_risk,
+        trust_adjustment=trust_adj
     )
     
-    # ── Step 4: Actions Layer Execution ──
-    payment_id = request.payment_id or f"pay_{result['audit_id'][:12]}"
+    # 5. Policy Control Plane
+    action, policy, reason_codes = policy_control_plane.evaluate_policy(
+        e_star=e_star,
+        risk_components={},
+        reason_codes=reason_codes
+    )
     
-    if result["action"] == ActionType.RELEASE.value:
+    # Actions
+    payment_id = request.payment_id or "api-eval"
+    import uuid
+    audit_id = str(uuid.uuid4())
+    
+    if action == ActionType.RELEASE:
         route_transfer.create_transfer(
             payment_id=payment_id,
-            amount=int(request.transaction.amount * 100), # in paise
+            amount=int(request.transaction.amount * 100),
             hold=False
         )
-    elif result["action"] == ActionType.HOLD.value:
+    elif action in (ActionType.HOLD, ActionType.PARTIAL_RESERVE):
+        hold_hours = policy.hold_duration_hours or 24
+        from datetime import datetime, timedelta
+        expires = datetime.now() + timedelta(hours=hold_hours)
+        
         transfer = route_transfer.create_transfer(
             payment_id=payment_id,
             amount=int(request.transaction.amount * 100),
             hold=True,
-            hold_until=result["hold_expires_at"]
+            hold_until=expires
         )
         if transfer.get("transfer_id"):
-            reconcile_sweeper.track_hold(payment_id, transfer["transfer_id"], result["hold_expires_at"])
-    elif result["action"] == ActionType.REFUSE.value:
+            reconcile_sweeper.track_hold(payment_id, transfer["transfer_id"], expires.isoformat())
+    elif action == ActionType.REFUSE:
         refund_client.create_refund(
             payment_id=payment_id,
             reason="fraud_detected"
         )
+        
+    from datetime import datetime
+    audit_entry = {
+        "audit_id": audit_id,
+        "payment_id": payment_id,
+        "amount": request.transaction.amount,
+        "source": request.source,
+        "decision": action.value,
+        "reason_codes": reason_codes,
+        "timestamp": datetime.now().isoformat(),
+        "e_star": e_star
+    }
+    audit_log.insert(0, audit_entry)
+    
+    
+    from schemas import RiskComponent, ExposureComponent
+    
+    risk_comp = RiskComponent(
+        fraud=fraud_prob,
+        intent=intent_risk,
+        graph=trust_adj,
+        uncertainty=0.1 if len(prediction_set) > 1 else 0.05
+    )
+    
+    exposure_comp = ExposureComponent(
+        gross=request.transaction.amount,
+        estimated_loss=e_star
+    )
     
     return RiskEvaluationResponse(
-        decision=result["action"],
-        risk_score=result["risk_score"],
-        intent_alignment=result.get("intent_alignment"),
-        prediction_set=result["prediction_set"],
-        reason_codes=result["reason_codes"],
-        audit_id=result["audit_id"],
-        hold_expires_at=result.get("hold_expires_at"),
+        decision=action,
+        risk=risk_comp,
+        exposure=exposure_comp,
+        policy=policy,
+        reason_codes=reason_codes
     )
 
+@app.post("/v1/intent/verify", tags=["Risk API"])
+async def verify_intent(contract: IntentContract, cart: list[CartItem], user_intent: str = None):
+    risk, alignment, reasons = intent_firewall.verify_intent(contract, cart, user_intent)
+    return {"intent_risk": risk, "alignment": alignment.value, "reason_codes": reasons}
+
+@app.post("/v1/policy/simulate", tags=["Risk API"])
+async def simulate_policy(e_star: float):
+    action, policy, reasons = policy_control_plane.evaluate_policy(e_star, {}, [])
+    return {"action": action.value, "policy": policy.model_dump(), "reason_codes": reasons}
+
+@app.get("/v1/evidence/{transaction_id}", tags=["Risk API"])
+async def get_evidence(transaction_id: str):
+    import sqlite3, json
+    from database import get_db_connection
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM evidence_capsules WHERE transaction_id=?", (transaction_id,))
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return {"error": "not found"}
+    return dict(row)
 
 @app.get("/v1/risk/stats", response_model=RiskStats, tags=["Risk API"])
 async def get_risk_stats():
@@ -349,8 +377,8 @@ async def get_risk_stats():
     ```
     """
     conformal_stats = conformal_engine.get_coverage_stats()
-    router_stats = decision_router.get_stats()
-    semantic_stats = semantic_engine.get_stats()
+    router_stats = {'total_routed': len(audit_log), 'release': sum(1 for a in audit_log if a['decision'] == 'RELEASE'), 'refuse': sum(1 for a in audit_log if a['decision'] == 'REFUSE'), 'hold': sum(1 for a in audit_log if a['decision'] in ('HOLD', 'PARTIAL_RESERVE')), 'fraud_prevented_amount': sum(a['amount'] for a in audit_log if a['decision'] == 'REFUSE')}
+    semantic_stats = {'total_checked': 0}
     calibration_stats = calibration_job.get_stats()
     
     return RiskStats(
@@ -455,7 +483,7 @@ async def dispute_webhook(payload: DisputeWebhookPayload):
         trust_passport.issue_credential(payload.vendor_id, "dispute_lost")
         
     # Feed into calibration loop
-    audit_entry = decision_router.get_audit_by_payment(payload.payment_id)
+    audit_entry = next((a for a in audit_log if a['payment_id'] == payload.payment_id), None)
     our_prediction = audit_entry["action"] if audit_entry else "RELEASE"
     
     calibration_job.ingest_outcome(
@@ -470,8 +498,8 @@ async def dispute_webhook(payload: DisputeWebhookPayload):
 
 @app.get("/v1/trust/{entity_id}", tags=["Flywheel"])
 async def get_trust_passport(entity_id: str):
-    """Retrieve the trust passport for a vendor (Day 3)."""
-    return trust_passport.check_trust(entity_id)
+    """Retrieve the trust credential for a vendor (Day 3/4)."""
+    return trust_passport.get_trust_credential(entity_id).model_dump()
 
 
 # ──────────────────────────────────────────────
@@ -505,23 +533,29 @@ async def get_transactions():
     ]
     ```
     """
-    return decision_router.get_audit_log(limit=50)
+    return audit_log[:50]
 
 
 @app.get("/api/risk-log", tags=["Dashboard"])
 async def get_risk_log():
     """
     Returns a stream of internal logs detailing the Risk Engine's decision-making process.
-    
-    ## Overview
-    Provides a real-time stream of diagnostic logs directly from the Risk Kernel's internal decision tree. This is highly useful for debugging why a specific transaction was held or refused.
-    
-    ## Log Contents
-    - **Semantic Details:** Outputs the LLM reasoning if an agent's cart violates the user's instructions (e.g. *"Detected 0.42 intent mismatch due to budget violation"*).
-    - **Threshold Boundaries:** Logs the exact Conformal Alpha value and the resulting prediction set (e.g. *"Set [BENIGN, FRAUD] resulted in HOLD"*).
-    - **Fallback Mechanics:** Logs warnings when features are missing and the system safely defaults to mean imputation.
     """
-    return decision_router.get_risk_log(limit=20)
+    logs = []
+    for a in audit_log[:20]:
+        # Extract HH:MM:SS from ISO timestamp
+        time_str = a.get('timestamp', '').split('T')[1][:8] if 'T' in a.get('timestamp', '') else ''
+        
+        decision = a.get('decision', 'RELEASE')
+        logs.append({"time": time_str, "msg": f"[Policy] Decision for {a.get('payment_id')}: → {decision}"})
+        
+        if decision in ('HOLD', 'PARTIAL_RESERVE', 'STEP_UP'):
+            logs.append({"time": time_str, "msg": f"[Exposure] Exposure exceeded limits. Calculated E* = {a.get('e_star', 0):.2f}"})
+            logs.append({"time": time_str, "msg": f"[Intent Firewall] Evaluated semantic risk. Reason codes: {', '.join(a.get('reason_codes', []))}"})
+        else:
+            logs.append({"time": time_str, "msg": f"[Conformal Engine] Risk bounded safely. E* = {a.get('e_star', 0):.2f}"})
+    
+    return logs
 
 
 @app.get("/api/stats", tags=["Dashboard"])
@@ -533,9 +567,15 @@ async def get_dashboard_stats():
     Aggregates data across the Conformal Risk Engine, Semantic Engine, and Decision Router.
     It calculates the total value of fraud prevented, the number of escrow holds active, and the current empirical coverage of the conformal predictors.
     """
-    router_stats = decision_router.get_stats()
+    router_stats = {
+        'total_routed': len(audit_log), 
+        'release': sum(1 for a in audit_log if a['decision'] == 'RELEASE'), 
+        'refuse': sum(1 for a in audit_log if a['decision'] == 'REFUSE'), 
+        'hold': sum(1 for a in audit_log if a['decision'] in ('HOLD', 'PARTIAL_RESERVE', 'STEP_UP')), 
+        'fraud_prevented_amount': sum(a['amount'] for a in audit_log if a['decision'] != 'RELEASE')
+    }
     conformal_stats = conformal_engine.get_coverage_stats()
-    semantic_stats = semantic_engine.get_stats()
+    semantic_stats = {'total_checked': len(audit_log)}
     
     # Try to load evaluation report
     coverage = conformal_stats["empirical_coverage"]

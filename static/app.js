@@ -129,8 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Highlight engine names
                 let formattedMsg = log.msg
                     .replace('[Conformal Engine]', '<strong style="color: #000;">[Conformal Engine]</strong>')
-                    .replace('[Semantic Engine]', '<strong style="color: var(--alert-color);">[Semantic Engine]</strong>')
-                    .replace('[Decision Router]', '<strong style="color: var(--hold-color);">[Decision Router]</strong>');
+                    .replace('[Intent Firewall]', '<strong style="color: var(--alert-color);">[Intent Firewall]</strong>')
+                    .replace('[Exposure]', '<strong style="color: var(--hold-color);">[Exposure]</strong>')
+                    .replace('[Policy]', '<strong style="color: var(--hold-color);">[Policy]</strong>');
 
                 // Highlight decisions
                 formattedMsg = formattedMsg

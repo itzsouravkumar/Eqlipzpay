@@ -20,23 +20,30 @@ import os
 logger = logging.getLogger("eqlipz.actions.disputes")
 
 ENV_PATH = Path(__file__).resolve().parent.parent / "config" / "razorpay_keys.env"
-
+ROOT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
 def _load_razorpay_keys() -> tuple:
+    """Load Razorpay API credentials from .env or config/razorpay_keys.env."""
     key_id = os.environ.get("RAZORPAY_KEY_ID")
     key_secret = os.environ.get("RAZORPAY_KEY_SECRET")
-    if not key_id and ENV_PATH.exists():
-        with open(ENV_PATH) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                v = v.strip().strip("'\"")
-                if k.strip() == "RAZORPAY_KEY_ID":
-                    key_id = v
-                elif k.strip() == "RAZORPAY_KEY_SECRET":
-                    key_secret = v
+    
+    if not key_id:
+        for path in [ROOT_ENV_PATH, ENV_PATH]:
+            if path.exists():
+                with open(path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        v = v.strip().strip("'\"")
+                        if k.strip() == "RAZORPAY_KEY_ID":
+                            key_id = v
+                        elif k.strip() == "RAZORPAY_KEY_SECRET":
+                            key_secret = v
+                if key_id:
+                    break
+    
     return key_id, key_secret
 
 
@@ -52,20 +59,20 @@ class DisputesClient:
     
     def __init__(self):
         self.key_id, self.key_secret = _load_razorpay_keys()
-        self.dry_run = not (self.key_id and self.key_secret)
+        if not self.key_id or not self.key_secret:
+            raise RuntimeError(
+                "[Disputes] Configuration Error: Razorpay credentials "
+                "(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET) are missing. EqlipZ Pay requires live API keys."
+            )
         
         # In-memory ledger of dispute outcomes for the calibration loop
         self._outcomes: List[Dict] = []
         
         self.client = httpx.Client(
-            auth=(self.key_id, self.key_secret) if not self.dry_run else None,
+            auth=(self.key_id, self.key_secret),
             timeout=10.0,
         )
-        
-        if self.dry_run:
-            logger.warning(
-                "[Disputes] No Razorpay credentials. DRY-RUN mode."
-            )
+        logger.info("[Disputes] Razorpay credentials loaded. Live mode.")
     
     def accept_dispute(self, dispute_id: str) -> Dict:
         """
@@ -74,36 +81,27 @@ class DisputesClient:
         This records the outcome as 'lost' for calibration:
         the system's RELEASE decision was wrong (it was actually fraud).
         """
-        if self.dry_run:
+        try:
+            resp = self.client.post(
+                f"{self.BASE_URL}/disputes/{dispute_id}/accept",
+            )
+            resp.raise_for_status()
+            data = resp.json()
             result = {
                 "dispute_id": dispute_id,
                 "action": "accepted",
-                "status": "accepted (dry-run)",
-                "dry_run": True,
+                "status": data.get("status", "accepted"),
+                "dry_run": False,
             }
-            logger.info(f"[Disputes] DRY-RUN: Would accept dispute {dispute_id}")
-        else:
-            try:
-                resp = self.client.post(
-                    f"{self.BASE_URL}/disputes/{dispute_id}/accept",
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                result = {
-                    "dispute_id": dispute_id,
-                    "action": "accepted",
-                    "status": data.get("status", "accepted"),
-                    "dry_run": False,
-                }
-                logger.info(f"[Disputes] Accepted dispute {dispute_id}")
-            except Exception as e:
-                logger.error(f"[Disputes] Accept error for {dispute_id}: {e}")
-                result = {
-                    "dispute_id": dispute_id,
-                    "error": str(e),
-                    "status": "failed",
-                    "dry_run": False,
-                }
+            logger.info(f"[Disputes] Accepted dispute {dispute_id}")
+        except Exception as e:
+            logger.error(f"[Disputes] Accept error for {dispute_id}: {e}")
+            result = {
+                "dispute_id": dispute_id,
+                "error": str(e),
+                "status": "failed",
+                "dry_run": False,
+            }
         
         # Record outcome for calibration
         self._record_outcome(dispute_id, "accepted", "FRAUD_CONFIRMED")
@@ -119,44 +117,32 @@ class DisputesClient:
         
         The outcome (won/lost) arrives later via a webhook or polling.
         """
-        if self.dry_run:
+        try:
+            payload = {}
+            if evidence:
+                payload["documents"] = evidence
+            
+            resp = self.client.patch(
+                f"{self.BASE_URL}/disputes/{dispute_id}/contest",
+                json=payload,
+            )
+            resp.raise_for_status()
+            data = resp.json()
             result = {
                 "dispute_id": dispute_id,
                 "action": "contested",
-                "status": "contested (dry-run)",
-                "evidence_hash": hashlib.sha256(
-                    str(evidence).encode()
-                ).hexdigest()[:16] if evidence else None,
-                "dry_run": True,
+                "status": data.get("status", "under_review"),
+                "dry_run": False,
             }
-            logger.info(f"[Disputes] DRY-RUN: Would contest dispute {dispute_id}")
-        else:
-            try:
-                payload = {}
-                if evidence:
-                    payload["documents"] = evidence
-                
-                resp = self.client.patch(
-                    f"{self.BASE_URL}/disputes/{dispute_id}/contest",
-                    json=payload,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                result = {
-                    "dispute_id": dispute_id,
-                    "action": "contested",
-                    "status": data.get("status", "under_review"),
-                    "dry_run": False,
-                }
-                logger.info(f"[Disputes] Contested dispute {dispute_id}")
-            except Exception as e:
-                logger.error(f"[Disputes] Contest error for {dispute_id}: {e}")
-                result = {
-                    "dispute_id": dispute_id,
-                    "error": str(e),
-                    "status": "failed",
-                    "dry_run": False,
-                }
+            logger.info(f"[Disputes] Contested dispute {dispute_id}")
+        except Exception as e:
+            logger.error(f"[Disputes] Contest error for {dispute_id}: {e}")
+            result = {
+                "dispute_id": dispute_id,
+                "error": str(e),
+                "status": "failed",
+                "dry_run": False,
+            }
         
         return result
     

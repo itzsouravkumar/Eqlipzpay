@@ -1,172 +1,194 @@
 """
-EqlipZ Pay — Trust Passport Service
-=====================================
-A portable, hashed trust credential system for merchants and vendors.
-
-PRD §17: "The trust credentials map to sub-merchants... issued when holds are cleared safely."
-PRD §20.7: "Portable Trust Credentials (Trust Passport)."
+EqlipZ Pay — Contextual Trust Graph
+====================================
+Upgrades the Trust Passport to support contextual risk (e.g., trusted for $50 food, untrusted for $2000 electronics).
 """
 
 import logging
 import hashlib
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import math
 from database import get_db_connection
+from schemas import TrustCredential, ContextualTrust
 
 logger = logging.getLogger("eqlipz.flywheel.trust")
 
 
-class TrustPassportService:
+class ContextualTrustGraph:
     """
     Manages trust passports for entities (vendors/agents).
-    
-    A trust passport builds up over time based on:
-    - Successful transactions without disputes (benign history)
-    - Holds that cleared safely (adds strong trust signal)
-    - Conceded/lost disputes (removes trust signal)
-    
-    Never stores raw personal data; uses SHA-256 hashes for entity identifiers.
     """
     
     def __init__(self):
-        logger.info("[TrustPassport] Initialized with SQLite backend.")
+        logger.info("[TrustGraph] Initialized with SQLite backend.")
         
     def _hash_entity(self, entity_id: str) -> str:
         """Hash entity ID to avoid storing raw data."""
         return hashlib.sha256(entity_id.encode()).hexdigest()
         
-    def _get_or_create(self, entity_hash: str) -> Dict:
+    def _get_or_create(self, entity_id: str) -> Dict:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT * FROM trust_passports WHERE entity_hash = ?", (entity_hash,))
+        cursor.execute("SELECT * FROM trust_passports WHERE entity_id = ?", (entity_id,))
         row = cursor.fetchone()
         
         if not row:
             now = datetime.now().isoformat()
+            default_contexts = json.dumps([
+                {"domain": "general", "trust_score": 50, "transaction_count": 0}
+            ])
+            initial_hash = self._hash_entity(f"{entity_id}_v1_{now}")
+            
             cursor.execute(
-                "INSERT INTO trust_passports (entity_hash, created_at, last_updated) VALUES (?, ?, ?)",
-                (entity_hash, now, now)
+                """
+                INSERT INTO trust_passports 
+                (entity_id, risk_band, contexts, success_count, dispute_count, fraud_count, credential_hash, version, created_at, last_updated) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (entity_id, "B-MODERATE", default_contexts, 0, 0, 0, initial_hash, "1", now, now)
             )
             conn.commit()
             
-            cursor.execute("SELECT * FROM trust_passports WHERE entity_hash = ?", (entity_hash,))
+            cursor.execute("SELECT * FROM trust_passports WHERE entity_id = ?", (entity_id,))
             row = cursor.fetchone()
             
         conn.close()
-        return dict(row)
-    
-    def issue_credential(
+        
+        passport = dict(row)
+        passport['contexts'] = json.loads(passport['contexts'])
+        return passport
+
+    def get_trust_credential(self, entity_id: str) -> TrustCredential:
+        passport = self._get_or_create(entity_id)
+        
+        contexts = [ContextualTrust(**c) for c in passport['contexts']]
+        
+        return TrustCredential(
+            credential_id=passport['credential_hash'],
+            entity_id=entity_id,
+            risk_band=passport['risk_band'],
+            contexts=contexts,
+            issued_at=datetime.fromisoformat(passport['created_at']),
+            expires_at=datetime.now() + timedelta(days=30),
+            cryptographic_hash=passport['credential_hash']
+        )
+        
+    def update_trust(
         self,
         entity_id: str,
+        domain: str,
         outcome_type: str,
-    ) -> Dict:
+    ) -> TrustCredential:
         """
-        Issue a credential/update passport based on an outcome.
+        outcome_type: 'success', 'dispute', 'fraud'
+        """
+        passport = self._get_or_create(entity_id)
         
-        Args:
-            entity_id: The raw vendor/agent ID.
-            outcome_type: 'benign_tx', 'cleared_hold', 'dispute_lost'
-        """
-        entity_hash = self._hash_entity(entity_id)
-        passport = self._get_or_create(entity_hash)
+        # Update counts
+        if outcome_type == 'success':
+            passport['success_count'] += 1
+        elif outcome_type == 'dispute':
+            passport['dispute_count'] += 1
+        elif outcome_type == 'fraud':
+            passport['fraud_count'] += 1
+            
+        # Update contexts
+        domain_found = False
+        for ctx in passport['contexts']:
+            if ctx['domain'] == domain:
+                domain_found = True
+                ctx['transaction_count'] += 1
+                if outcome_type == 'success':
+                    ctx['trust_score'] = min(100, ctx['trust_score'] + 5)
+                elif outcome_type == 'dispute':
+                    ctx['trust_score'] = max(0, ctx['trust_score'] - 20)
+                elif outcome_type == 'fraud':
+                    ctx['trust_score'] = max(0, ctx['trust_score'] - 50)
+                break
+                
+        if not domain_found:
+            new_score = 55 if outcome_type == 'success' else 30
+            passport['contexts'].append({
+                "domain": domain,
+                "trust_score": new_score,
+                "transaction_count": 1
+            })
+            
+        # Re-evaluate risk band
+        overall_score = sum(c['trust_score'] * c['transaction_count'] for c in passport['contexts']) / max(1, sum(c['transaction_count'] for c in passport['contexts']))
+        
+        if passport['fraud_count'] > 0:
+            risk_band = "D-BLOCK"
+        elif overall_score >= 80 and passport['success_count'] > 10 and passport['dispute_count'] == 0:
+            risk_band = "A-TRUSTED"
+        elif overall_score >= 50:
+            risk_band = "B-MODERATE"
+        else:
+            risk_band = "C-HIGH-RISK"
+            
+        passport['risk_band'] = risk_band
+        passport['version'] = str(int(passport['version']) + 1)
+        passport['last_updated'] = datetime.now().isoformat()
+        passport['credential_hash'] = self._hash_entity(f"{entity_id}_{passport['version']}_{passport['last_updated']}")
         
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        if outcome_type == "benign_tx":
-            cursor.execute("UPDATE trust_passports SET benign_count = benign_count + 1, last_updated = ? WHERE entity_hash = ?", (datetime.now().isoformat(), entity_hash))
-        elif outcome_type == "cleared_hold":
-            cursor.execute("UPDATE trust_passports SET cleared_holds = cleared_holds + 1, last_updated = ? WHERE entity_hash = ?", (datetime.now().isoformat(), entity_hash))
-        elif outcome_type == "dispute_lost":
-            cursor.execute("UPDATE trust_passports SET disputes_lost = disputes_lost + 1, last_updated = ? WHERE entity_hash = ?", (datetime.now().isoformat(), entity_hash))
-        else:
-            logger.warning(f"[TrustPassport] Unknown outcome type: {outcome_type}")
-            conn.close()
-            return passport
-            
-        conn.commit()
-        
-        # Record event
-        timestamp = datetime.now().isoformat()
-        credential_id = f"cred_{hashlib.sha256((entity_hash + outcome_type + timestamp).encode()).hexdigest()[:16]}"
         
         cursor.execute(
-            "INSERT INTO credential_log (entity_hash, event_type, timestamp, credential_id) VALUES (?, ?, ?, ?)",
-            (entity_hash, outcome_type, timestamp, credential_id)
+            """
+            UPDATE trust_passports 
+            SET risk_band = ?, contexts = ?, success_count = ?, dispute_count = ?, fraud_count = ?, credential_hash = ?, version = ?, last_updated = ?
+            WHERE entity_id = ?
+            """,
+            (
+                passport['risk_band'],
+                json.dumps(passport['contexts']),
+                passport['success_count'],
+                passport['dispute_count'],
+                passport['fraud_count'],
+                passport['credential_hash'],
+                passport['version'],
+                passport['last_updated'],
+                entity_id
+            )
         )
         conn.commit()
-        
-        # Fetch updated
-        cursor.execute("SELECT * FROM trust_passports WHERE entity_hash = ?", (entity_hash,))
-        updated_passport = dict(cursor.fetchone())
         conn.close()
         
-        logger.info(
-            f"[TrustPassport] Updated passport for {entity_hash[:8]}... "
-            f"Event: {outcome_type}"
-        )
+        logger.info(f"[TrustGraph] Updated {entity_id} to {risk_band}")
         
-        return updated_passport
+        return self.get_trust_credential(entity_id)
 
-    def get_trust_factor(self, entity_id: str) -> float:
+    def get_trust_adjustment(self, entity_id: str, domain: str = "general") -> float:
         """
-        Calculate a trust modifier [0.0, 1.0] to bias the decision router.
-        
-        1.0 = Max trust (bias towards RELEASE)
-        0.5 = Neutral
-        0.0 = Distrusted (bias towards REFUSE/HOLD)
+        Calculates a TrustAdjustment multiplier for the ExposureEngine.
+        1.0 = Neutral
+        < 1.0 = Reduces risk (Trusted)
+        > 1.0 = Increases risk (Untrusted)
         """
-        entity_hash = self._hash_entity(entity_id)
+        passport = self._get_or_create(entity_id)
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM trust_passports WHERE entity_hash = ?", (entity_hash,))
-        row = cursor.fetchone()
-        conn.close()
+        score = 50
+        for ctx in passport['contexts']:
+            if ctx['domain'] == domain:
+                score = ctx['trust_score']
+                break
+                
+        # Map [0, 100] to [2.0, 0.5] roughly
+        # If score is 50, adj is 1.0
+        # If score is 100, adj is 0.5 (halves exposure)
+        # If score is 0, adj is 2.0 (doubles exposure)
+        adj = 2.0 - (score / 100.0) * 1.5
         
-        if not row:
-            return 0.5  # Neutral default
-            
-        passport = dict(row)
-        
-        # Base formula:
-        # Cleared holds are worth 5x normal benign transactions.
-        # Disputes heavily penalize the score.
-        
-        positive_signal = passport["benign_count"] + (passport["cleared_holds"] * 5)
-        negative_signal = passport["disputes_lost"] * 20
-        
-        # Sigmoid-like scaling
-        net_score = positive_signal - negative_signal
-        
-        # Maps -inf to 0.0, 0 to 0.5, +inf to 1.0
-        trust_factor = 1.0 / (1.0 + math.exp(-net_score * 0.1))
-        
-        return float(trust_factor)
-        
-    def check_trust(self, entity_id: str) -> Dict:
-        """Return full trust passport and current factor."""
-        entity_hash = self._hash_entity(entity_id)
-        passport = self._get_or_create(entity_hash)
-        
-        return {
-            "passport": passport,
-            "trust_factor": round(self.get_trust_factor(entity_id), 4)
-        }
-        
+        return max(0.5, min(2.0, adj))
+
     def get_stats(self) -> Dict:
-        """Summary stats for dashboard."""
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM trust_passports")
-        total_passports = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM credential_log")
-        credentials_issued = cursor.fetchone()[0]
+        total = cursor.fetchone()[0]
         conn.close()
-        
-        return {
-            "total_passports": total_passports,
-            "credentials_issued": credentials_issued,
-        }
+        return {"total_passports": total}

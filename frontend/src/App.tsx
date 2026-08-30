@@ -8,7 +8,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col font-sans text-[#111] overflow-x-hidden bg-[#F8F8F6]">
+    <div className="min-h-screen flex flex-col font-sans text-[#111] overflow-x-hidden bg-bg">
       {/* Top Banner */}
       <div className="bg-black text-white text-[11px] font-medium tracking-wide py-3 text-center flex flex-col md:flex-row items-center justify-center gap-2">
         <span className="opacity-90">Read my Technical Evaluation Report.</span>
@@ -41,11 +41,11 @@ function App() {
         </div>
 
         <h1 className="text-[12vw] md:text-[5.5rem] leading-[1.05] font-medium tracking-tight max-w-4xl">
-          Secure AI Agent Transactions with Mathematical Guarantees
+          The Agentic Payment Trust & Risk Control Plane
         </h1>
         
         <p className="mt-8 text-gray-600 max-w-2xl text-lg md:text-xl font-light leading-relaxed">
-          Create intelligent payment flows that understand semantic intent, dynamically bound risk, and execute transactions reliably across your autonomous operations.
+          Create intelligent payment flows that understand semantic intent, dynamically bound risk, and execute transactions reliably via Live Razorpay APIs.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 mt-10">
@@ -62,7 +62,7 @@ function App() {
       <section className="px-6 md:px-12 pb-24 w-full flex justify-center">
         <div className="w-full max-w-6xl relative">
           {/* Blue Gradient Background simulating the screenshot */}
-          <div className="w-full aspect-[21/9] bg-gradient-to-br from-blue-400 via-blue-500 to-indigo-600 rounded-sm overflow-hidden flex items-center justify-center shadow-2xl relative p-4 md:p-12">
+          <div className="w-full aspect-21/9 bg-linear-to-br from-blue-400 via-blue-500 to-indigo-600 rounded-sm overflow-hidden flex items-center justify-center shadow-2xl relative p-4 md:p-12">
             {/* Inner Dashboard UI Mock */}
             <div className="w-full max-w-3xl bg-white/95 backdrop-blur-md rounded-md shadow-2xl flex flex-col p-6">
                <div className="text-xs font-semibold text-gray-400 mb-6 uppercase tracking-widest">Autonomous Transaction Log</div>
@@ -145,17 +145,17 @@ function App() {
         </div>
         
         <h2 className="text-3xl md:text-4xl font-medium text-center max-w-3xl leading-tight mb-20 text-gray-900">
-          Streamline Security, Reduce Fraud, and Increase Approval Rates by 10x with Enterprise-Grade AI Infrastructure.
+          Mathematically bound risk, verify intent, and execute autonomous payments securely via our Trust & Risk Control Plane.
         </h2>
 
-        <div className="w-full max-w-5xl bg-[#F8F8F6] border border-gray-200 p-2 md:p-8 rounded-sm shadow-sm">
+        <div className="w-full max-w-5xl bg-bg border border-gray-200 p-2 md:p-8 rounded-sm shadow-sm">
           <img src="/static_front/architecture.svg" alt="System Architecture" className="w-full h-auto mix-blend-multiply" style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.5) contrast(1.2)' }} />
           {/* Note: Inverting the dark SVG to fit the light theme, or you can provide a light SVG later */}
         </div>
       </section>
 
       {/* Adversarial Attack Scenario (The $200 -> $250 problem) */}
-      <section className="py-24 px-6 md:px-12 bg-[#F8F8F6] border-t border-gray-200 flex flex-col items-center">
+      <section className="py-24 px-6 md:px-12 bg-bg border-t border-gray-200 flex flex-col items-center">
         <div className="max-w-4xl w-full">
           <div className="flex items-center gap-4 mb-8">
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600">
@@ -174,10 +174,10 @@ function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>
                 <p className="text-gray-600 mb-4 leading-relaxed font-light">
-                  EqlipZ Pay utilizes <strong className="text-black font-medium">Conformal Prediction</strong> to generate a mathematically rigorous prediction set for every transaction. It analyzes the agent's historical intent, the current semantic context, and the cart contents.
+                  EqlipZ Pay utilizes <strong className="text-black font-medium">Conformal Prediction</strong> combined with an <strong className="text-black font-medium">Intent Firewall</strong> and live Razorpay APIs to dynamically compute an Exposure Score (E*). It analyzes the agent's historical intent, the current semantic context, and the cart contents.
                 </p>
                 <p className="text-gray-600 leading-relaxed font-light">
-                  When the $250 value is processed, the engine calculates the probability distribution. Because $250 falls outside the tightly bounded 90.6% confidence interval for this specific semantic context, the transaction is immediately flagged.
+                  When the $250 value is processed, the engine calculates the probability distribution. Because $250 falls outside the tightly bounded 90.6% confidence interval and triggers an intent mismatch, the Policy Control Plane flags it immediately, triggering a live Escrow hold via Razorpay Route API.
                 </p>
               </div>
               <div className="bg-gray-50 border border-gray-200 p-6 rounded-sm">
