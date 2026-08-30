@@ -1,10 +1,15 @@
+import os
 import sqlite3
 import logging
 from pathlib import Path
 
 logger = logging.getLogger("eqlipz.database")
 
-DB_PATH = Path(__file__).parent / "eqlipz.db"
+# Use Render persistent disk if available, otherwise use local directory
+if os.path.exists("/var/data"):
+    DB_PATH = Path("/var/data/eqlipz.db")
+else:
+    DB_PATH = Path(__file__).parent / "eqlipz.db"
 
 def get_db_connection():
     """Returns a connection to the SQLite database."""
