@@ -24,7 +24,7 @@ def init_db():
 
     # 1. Trust Passports (Contextual Trust Graph)
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS trust_passports (
+        CREATE TABLE IF NOT EXISTS trust_passports_v2 (
             entity_id TEXT PRIMARY KEY,
             risk_band TEXT NOT NULL,
             contexts TEXT NOT NULL, -- JSON encoded list of ContextualTrust
@@ -51,7 +51,7 @@ def init_db():
 
     # 3. Pending Holds (Sweeper)
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS pending_holds (
+        CREATE TABLE IF NOT EXISTS pending_holds_v2 (
             transfer_id TEXT PRIMARY KEY,
             payment_id TEXT NOT NULL,
             expiry TEXT NOT NULL,

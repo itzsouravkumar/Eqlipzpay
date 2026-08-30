@@ -43,7 +43,7 @@ class ReconcileSweeper:
         expiry_str = expiry.isoformat() if isinstance(expiry, datetime) else str(expiry)
         
         cursor.execute(
-            "INSERT OR REPLACE INTO pending_holds (transfer_id, payment_id, expiry, status, added_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO pending_holds_v2 (transfer_id, payment_id, expiry, status, added_at) VALUES (?, ?, ?, ?, ?)",
             (transfer_id, payment_id, expiry_str, "pending", added_at)
         )
         conn.commit()
@@ -54,7 +54,7 @@ class ReconcileSweeper:
         """Mark a hold as manually resolved so the sweeper stops tracking it."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM pending_holds WHERE transfer_id = ?", (transfer_id,))
+        cursor.execute("DELETE FROM pending_holds_v2 WHERE transfer_id = ?", (transfer_id,))
         rows_deleted = cursor.rowcount
         conn.commit()
         conn.close()
@@ -93,7 +93,7 @@ class ReconcileSweeper:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT * FROM pending_holds WHERE expiry <= ?", (now,))
+        cursor.execute("SELECT * FROM pending_holds_v2 WHERE expiry <= ?", (now,))
         expired_holds = cursor.fetchall()
         
         if not expired_holds:
@@ -120,7 +120,7 @@ class ReconcileSweeper:
                 logger.warning("[Sweeper] No callback registered for auto-release")
                 
             # Remove from tracking
-            cursor.execute("DELETE FROM pending_holds WHERE transfer_id = ?", (transfer_id,))
+            cursor.execute("DELETE FROM pending_holds_v2 WHERE transfer_id = ?", (transfer_id,))
             
         conn.commit()
         conn.close()
@@ -129,12 +129,12 @@ class ReconcileSweeper:
         """Get stats for dashboard."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM pending_holds")
+        cursor.execute("SELECT COUNT(*) FROM pending_holds_v2")
         count = cursor.fetchone()[0]
         conn.close()
         
         return {
             "is_running": self._running,
             "interval_seconds": self.interval_seconds,
-            "pending_holds_tracked": count
+            "pending_holds_v2_tracked": count
         }

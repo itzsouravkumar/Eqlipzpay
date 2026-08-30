@@ -32,7 +32,7 @@ class ContextualTrustGraph:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT * FROM trust_passports WHERE entity_id = ?", (entity_id,))
+        cursor.execute("SELECT * FROM trust_passports_v2 WHERE entity_id = ?", (entity_id,))
         row = cursor.fetchone()
         
         if not row:
@@ -44,7 +44,7 @@ class ContextualTrustGraph:
             
             cursor.execute(
                 """
-                INSERT INTO trust_passports 
+                INSERT INTO trust_passports_v2 
                 (entity_id, risk_band, contexts, success_count, dispute_count, fraud_count, credential_hash, version, created_at, last_updated) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -52,7 +52,7 @@ class ContextualTrustGraph:
             )
             conn.commit()
             
-            cursor.execute("SELECT * FROM trust_passports WHERE entity_id = ?", (entity_id,))
+            cursor.execute("SELECT * FROM trust_passports_v2 WHERE entity_id = ?", (entity_id,))
             row = cursor.fetchone()
             
         conn.close()
@@ -139,7 +139,7 @@ class ContextualTrustGraph:
         
         cursor.execute(
             """
-            UPDATE trust_passports 
+            UPDATE trust_passports_v2 
             SET risk_band = ?, contexts = ?, success_count = ?, dispute_count = ?, fraud_count = ?, credential_hash = ?, version = ?, last_updated = ?
             WHERE entity_id = ?
             """,
@@ -188,7 +188,7 @@ class ContextualTrustGraph:
     def get_stats(self) -> Dict:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM trust_passports")
+        cursor.execute("SELECT COUNT(*) FROM trust_passports_v2")
         total = cursor.fetchone()[0]
         conn.close()
         return {"total_passports": total}
