@@ -125,6 +125,7 @@ app = FastAPI(
 )
 
 app.mount("/dashboard", StaticFiles(directory="static", html=True), name="static")
+app.mount("/static_front", StaticFiles(directory="frontend/dist"), name="static_front")
 
 # Share engine instances with routers via app.state
 app.state.conformal_engine = conformal_engine
@@ -600,7 +601,12 @@ def health_check():
 
 @app.get("/", include_in_schema=False)
 def read_root():
-    return FileResponse("static/landing.html")
+    # Serve the React landing page
+    return FileResponse("frontend/dist/index.html")
+
+@app.get("/case-study", include_in_schema=False)
+def read_case_study():
+    return FileResponse("frontend/dist/index.html")
 
 
 @app.get("/docs", include_in_schema=False)

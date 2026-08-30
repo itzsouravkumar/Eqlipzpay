@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="100%" style="background-color:#0d1117; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;">
+  <defs>
+    <style>
+      .node { fill: #161b22; stroke: #30363d; stroke-width: 2px; rx: 0; }
+      .highlight-node { fill: #1f2937; stroke: #58a6ff; stroke-width: 2px; rx: 0; }
+      .action-node { fill: #238636; stroke: #2ea043; stroke-width: 2px; rx: 0; }
+      .hold-node { fill: #9e6a03; stroke: #d29922; stroke-width: 2px; rx: 0; }
+      .refuse-node { fill: #da3633; stroke: #f85149; stroke-width: 2px; rx: 0; }
+      
+      .text-title { fill: #c9d1d9; font-size: 15px; font-weight: 600; text-anchor: middle; }
+      .text-title-dark { fill: #ffffff; font-size: 15px; font-weight: 600; text-anchor: middle; }
+      .text-desc { fill: #8b949e; font-size: 12px; text-anchor: middle; }
+      
+      .line { stroke: #30363d; stroke-width: 1.5px; fill: none; }
+      .animated-line { stroke: #58a6ff; stroke-width: 1.5px; fill: none; stroke-dasharray: 6, 6; animation: march 1s linear infinite; }
+      .feedback-line { stroke: #bc8cff; stroke-width: 1.5px; fill: none; stroke-dasharray: 6, 6; animation: march-rev 1.5s linear infinite; }
+      
+      @keyframes march { to { stroke-dashoffset: -12; } }
+      @keyframes march-rev { to { stroke-dashoffset: 12; } }
+    </style>
+    <!-- Crisp small chevron arrow markers -->
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polyline points="2 2, 6 4, 2 6" fill="none" stroke="#58a6ff" stroke-width="1.5" stroke-linecap="square" />
+    </marker>
+    <marker id="arr-fb" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polyline points="2 2, 6 4, 2 6" fill="none" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="square" />
+    </marker>
+    <marker id="arr-sweep" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polyline points="2 2, 6 4, 2 6" fill="none" stroke="#30363d" stroke-width="1.5" stroke-linecap="square" />
+    </marker>
+  </defs>
+
+  <!-- Titles -->
+  <text x="500" y="40" class="text-title" style="font-size:18px; fill:#58a6ff;">EqlipZ Pay - System Architecture</text>
+
+  <!-- Sources -->
+  <rect x="250" y="80" width="200" height="60" class="node" />
+  <text x="350" y="105" class="text-title">Human Checkout</text>
+  <text x="350" y="125" class="text-desc">Razorpay Webhooks</text>
+
+  <rect x="550" y="80" width="200" height="60" class="node" />
+  <text x="650" y="105" class="text-title">AI Agent</text>
+  <text x="650" y="125" class="text-desc">MCP / AP2 / UCP Protocols</text>
+
+  <!-- Ingestion -->
+  <rect x="400" y="180" width="200" height="60" class="highlight-node" />
+  <text x="500" y="205" class="text-title">Ingestion Gateway</text>
+  <text x="500" y="225" class="text-desc">Signature Validation &amp; Proxy</text>
+
+  <!-- Engines -->
+  <rect x="250" y="280" width="220" height="60" class="node" />
+  <text x="360" y="305" class="text-title">Conformal Risk Engine</text>
+  <text x="360" y="325" class="text-desc">Bounded Confidence Scoring</text>
+
+  <rect x="530" y="280" width="220" height="60" class="node" />
+  <text x="640" y="305" class="text-title">Semantic Entailment</text>
+  <text x="640" y="325" class="text-desc">Agent Intent Verification</text>
+
+  <!-- Router -->
+  <rect x="400" y="380" width="200" height="60" class="highlight-node" />
+  <text x="500" y="405" class="text-title">Decision Router</text>
+  <text x="500" y="425" class="text-desc">Release, Refuse, Hold</text>
+
+  <!-- Outcomes -->
+  <rect x="200" y="480" width="160" height="60" class="action-node" />
+  <text x="280" y="505" class="text-title-dark">Release</text>
+  <text x="280" y="525" class="text-title-dark" style="font-size:11px; font-weight:normal;">Route Transfer</text>
+
+  <rect x="420" y="480" width="160" height="60" class="hold-node" />
+  <text x="500" y="505" class="text-title-dark">Hold</text>
+  <text x="500" y="525" class="text-title-dark" style="font-size:11px; font-weight:normal;">Max 48h Escrow</text>
+
+  <rect x="640" y="480" width="160" height="60" class="refuse-node" />
+  <text x="720" y="505" class="text-title-dark">Refuse</text>
+  <text x="720" y="525" class="text-title-dark" style="font-size:11px; font-weight:normal;">Refund &amp; Block</text>
+
+  <!-- Feedback Loop -->
+  <rect x="850" y="280" width="130" height="80" class="node" style="stroke:#bc8cff;" />
+  <text x="915" y="315" class="text-title" style="fill:#bc8cff;">Calibration</text>
+  <text x="915" y="335" class="text-desc">Disputes API</text>
+
+  <!-- Sweeper -->
+  <rect x="20" y="280" width="130" height="80" class="node" />
+  <text x="85" y="315" class="text-title">Sweeper</text>
+  <text x="85" y="335" class="text-desc">Reconciliation</text>
+
+  <!-- Lines -->
+  <!-- Top to Ingestion -->
+  <path d="M 350 140 L 350 160 L 460 160 L 460 175" class="animated-line" marker-end="url(#arr)" />
+  <path d="M 650 140 L 650 160 L 540 160 L 540 175" class="animated-line" marker-end="url(#arr)" />
+  
+  <!-- Ingestion to Engines -->
+  <path d="M 460 240 L 460 260 L 360 260 L 360 275" class="animated-line" marker-end="url(#arr)" />
+  <path d="M 540 240 L 540 260 L 640 260 L 640 275" class="animated-line" marker-end="url(#arr)" />
+
+  <!-- Engines to Router -->
+  <path d="M 360 340 L 360 360 L 460 360 L 460 375" class="animated-line" marker-end="url(#arr)" />
+  <path d="M 640 340 L 640 360 L 540 360 L 540 375" class="animated-line" marker-end="url(#arr)" />
+
+  <!-- Router to Outcomes -->
+  <path d="M 460 440 L 460 460 L 280 460 L 280 475" class="animated-line" marker-end="url(#arr)" />
+  <path d="M 500 440 L 500 475" class="animated-line" marker-end="url(#arr)" />
+  <path d="M 540 440 L 540 460 L 720 460 L 720 475" class="animated-line" marker-end="url(#arr)" />
+
+  <!-- Feedback Loop -->
+  <!-- From Refuse out to Calibration bottom -->
+  <path d="M 800 510 L 915 510 L 915 365" class="feedback-line" marker-end="url(#arr-fb)" />
+  <!-- From Calibration left side to Router right side -->
+  <path d="M 850 320 L 790 320 L 790 410 L 605 410" class="feedback-line" marker-end="url(#arr-fb)" />
+
+  <!-- Sweeper Loop -->
+  <path d="M 85 280 L 85 210 L 395 210" class="line" marker-end="url(#arr-sweep)" />
+</svg>

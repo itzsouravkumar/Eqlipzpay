@@ -8,3 +8,5 @@ data/processed/**/*.parquet
 htmlcov/
 *.egg-info/
 pitchdeck_script.md
+frontend/node_modules
+frontend/dist

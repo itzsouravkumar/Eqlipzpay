@@ -9,9 +9,9 @@ PRD §20.6: "Feed every resolved dispute back into the calibration set within 24
 """
 
 import logging
-import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
+from database import get_db_connection
 
 logger = logging.getLogger("eqlipz.flywheel.calibration")
 
@@ -40,27 +40,36 @@ class CalibrationJob:
         self.target_coverage = target_coverage
         self.recalibration_window = timedelta(hours=recalibration_window_hours)
         
-        # Ground-truth label store: list of {timestamp, prediction, ground_truth, amount}
-        self._labels: List[Dict] = []
-        
-        # Recalibration history
-        self._calibration_log: List[Dict] = []
-        
-        # Current thresholds (will be updated by recalibrate())
+        # Load alpha from DB or default
         self.current_alpha = 1.0 - target_coverage  # 0.10 for 90% coverage
         
         # Reference to the conformal engine (set externally)
         self._conformal_engine = None
         
+        self._init_state_from_db()
+        
         logger.info(
             f"[Calibration] Initialized. Target coverage={target_coverage}, "
-            f"window={recalibration_window_hours}h"
+            f"window={recalibration_window_hours}h (SQLite backend)"
         )
+        
+    def _init_state_from_db(self):
+        """Restore the latest alpha from DB calibration log if it exists."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT new_alpha FROM calibration_log ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            self.current_alpha = float(row["new_alpha"])
+            logger.info(f"[Calibration] Restored alpha {self.current_alpha} from DB.")
     
     def set_conformal_engine(self, engine):
         """Attach the conformal engine for live recalibration."""
         self._conformal_engine = engine
-        logger.info("[Calibration] Conformal engine attached for live recalibration.")
+        self._conformal_engine.alpha = self.current_alpha
+        logger.info(f"[Calibration] Conformal engine attached, alpha set to {self.current_alpha}.")
     
     def ingest_outcome(
         self,
@@ -80,15 +89,18 @@ class CalibrationJob:
             amount: Transaction amount (for EMV calculation).
             source: Where this label came from (dispute, hold_resolution, auto_release).
         """
-        label = {
-            "payment_id": payment_id,
-            "prediction": our_prediction,
-            "ground_truth": ground_truth,
-            "amount": amount,
-            "source": source,
-            "timestamp": datetime.now(),
-        }
-        self._labels.append(label)
+        now_str = datetime.now().isoformat()
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO calibration_labels 
+               (payment_id, prediction, ground_truth, amount, source, timestamp) 
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (payment_id, our_prediction, ground_truth, amount, source, now_str)
+        )
+        conn.commit()
+        conn.close()
         
         logger.info(
             f"[Calibration] Label ingested: {payment_id} "
@@ -97,14 +109,25 @@ class CalibrationJob:
         )
         
         # Check if we have enough new labels to trigger recalibration
+        # (This is simplified: recalibrates if recent labels >= threshold)
         recent = self._get_recent_labels()
         if len(recent) >= self.MIN_RECALIBRATION_BATCH:
             self.recalibrate()
     
     def _get_recent_labels(self) -> List[Dict]:
         """Get labels within the recalibration window."""
-        cutoff = datetime.now() - self.recalibration_window
-        return [l for l in self._labels if l["timestamp"] >= cutoff]
+        cutoff_str = (datetime.now() - self.recalibration_window).isoformat()
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM calibration_labels WHERE timestamp >= ?",
+            (cutoff_str,)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(r) for r in rows]
     
     def recalibrate(self) -> Dict:
         """
@@ -137,7 +160,7 @@ class CalibrationJob:
         for label in recent:
             pred = label["prediction"]
             truth = label["ground_truth"]
-            amt = label["amount"]
+            amt = float(label["amount"])
             
             if truth == "FRAUD_CONFIRMED":
                 if pred in ("REFUSE", "HOLD"):
@@ -177,6 +200,8 @@ class CalibrationJob:
                 )
         else:
             new_alpha = old_alpha
+            
+        alpha_changed = (old_alpha != new_alpha)
         
         result = {
             "status": "recalibrated",
@@ -186,7 +211,7 @@ class CalibrationJob:
             "target_coverage": self.target_coverage,
             "old_alpha": round(old_alpha, 4),
             "new_alpha": round(new_alpha, 4),
-            "alpha_changed": old_alpha != new_alpha,
+            "alpha_changed": alpha_changed,
             "false_negatives": false_negatives,
             "false_positives": false_positives,
             "true_positives": true_positives,
@@ -194,7 +219,24 @@ class CalibrationJob:
             "fp_cost": round(fp_cost, 2),
         }
         
-        self._calibration_log.append(result)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO calibration_log (
+                   status, timestamp, labels_used, empirical_coverage, target_coverage,
+                   old_alpha, new_alpha, alpha_changed, false_negatives, false_positives,
+                   true_positives, fn_cost, fp_cost
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                result["status"], result["timestamp"], result["labels_used"],
+                result["empirical_coverage"], result["target_coverage"],
+                result["old_alpha"], result["new_alpha"], int(result["alpha_changed"]),
+                result["false_negatives"], result["false_positives"], result["true_positives"],
+                result["fn_cost"], result["fp_cost"]
+            )
+        )
+        conn.commit()
+        conn.close()
         
         logger.info(
             f"[Calibration] Recalibrated: coverage={empirical_coverage:.4f} "
@@ -242,15 +284,29 @@ class CalibrationJob:
     
     def get_calibration_log(self, limit: int = 20) -> List[Dict]:
         """Return recent calibration events."""
-        return self._calibration_log[-limit:]
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM calibration_log ORDER BY id DESC LIMIT ?", (limit,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(r) for r in rows][::-1]
     
     def get_stats(self) -> Dict:
         """Summary stats for the dashboard."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM calibration_labels")
+        total_labels = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM calibration_log")
+        calibrations_performed = cursor.fetchone()[0]
+        conn.close()
+        
         recent = self._get_recent_labels()
+        
         return {
-            "total_labels": len(self._labels),
+            "total_labels": total_labels,
             "labels_in_window": len(recent),
-            "calibrations_performed": len(self._calibration_log),
+            "calibrations_performed": calibrations_performed,
             "current_alpha": round(self.current_alpha, 4),
             "target_coverage": self.target_coverage,
             "window_hours": self.recalibration_window.total_seconds() / 3600,

@@ -12,6 +12,7 @@ import logging
 import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Callable
+from database import get_db_connection
 
 logger = logging.getLogger("eqlipz.sweeper")
 
@@ -27,29 +28,38 @@ class ReconcileSweeper:
         self._running = False
         self._task = None
         
-        # In-memory tracking of pending items (in a real DB this would be a table)
-        self._pending_holds: Dict[str, Dict] = {}
-        
         # Callbacks for when an action needs to be taken by the main app
         self.on_hold_released: Callable = None
         
-        logger.info(f"[Sweeper] Initialized with interval {interval_seconds}s")
+        logger.info(f"[Sweeper] Initialized with interval {interval_seconds}s (SQLite backend)")
         
     def track_hold(self, payment_id: str, transfer_id: str, expiry: datetime):
         """Register a new hold for the sweeper to monitor."""
-        self._pending_holds[transfer_id] = {
-            "payment_id": payment_id,
-            "transfer_id": transfer_id,
-            "expiry": expiry,
-            "status": "pending",
-            "added_at": datetime.now()
-        }
-        logger.info(f"[Sweeper] Tracking hold for transfer {transfer_id}, expiry {expiry}")
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        added_at = datetime.now().isoformat()
+        
+        # If expiry is datetime, convert to isoformat. If it's already string, keep it.
+        expiry_str = expiry.isoformat() if isinstance(expiry, datetime) else str(expiry)
+        
+        cursor.execute(
+            "INSERT OR REPLACE INTO pending_holds (transfer_id, payment_id, expiry, status, added_at) VALUES (?, ?, ?, ?, ?)",
+            (transfer_id, payment_id, expiry_str, "pending", added_at)
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"[Sweeper] Tracking hold for transfer {transfer_id}, expiry {expiry_str}")
         
     def resolve_hold(self, transfer_id: str):
         """Mark a hold as manually resolved so the sweeper stops tracking it."""
-        if transfer_id in self._pending_holds:
-            self._pending_holds.pop(transfer_id)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM pending_holds WHERE transfer_id = ?", (transfer_id,))
+        rows_deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        if rows_deleted > 0:
             logger.info(f"[Sweeper] Stopped tracking resolved hold {transfer_id}")
             
     async def start(self):
@@ -78,41 +88,53 @@ class ReconcileSweeper:
         Execute a single sweep cycle.
         Find holds that have expired and auto-release them.
         """
-        now = datetime.now()
-        expired_transfers = []
+        now = datetime.now().isoformat()
         
-        for transfer_id, data in self._pending_holds.items():
-            if data["expiry"] <= now:
-                expired_transfers.append(transfer_id)
-                
-        if not expired_transfers:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM pending_holds WHERE expiry <= ?", (now,))
+        expired_holds = cursor.fetchall()
+        
+        if not expired_holds:
+            conn.close()
             return
             
-        logger.info(f"[Sweeper] Found {len(expired_transfers)} expired holds to auto-release")
+        logger.info(f"[Sweeper] Found {len(expired_holds)} expired holds to auto-release")
         
-        for transfer_id in expired_transfers:
-            data = self._pending_holds[transfer_id]
+        for row in expired_holds:
+            transfer_id = row["transfer_id"]
+            payment_id = row["payment_id"]
             
             # Fire callback if registered
             if self.on_hold_released:
                 try:
                     # Execute in a non-blocking way or await if it's async
                     if asyncio.iscoroutinefunction(self.on_hold_released):
-                        await self.on_hold_released(transfer_id, data["payment_id"])
+                        await self.on_hold_released(transfer_id, payment_id)
                     else:
-                        self.on_hold_released(transfer_id, data["payment_id"])
+                        self.on_hold_released(transfer_id, payment_id)
                 except Exception as e:
                     logger.error(f"[Sweeper] Callback failed for {transfer_id}: {e}")
             else:
                 logger.warning("[Sweeper] No callback registered for auto-release")
                 
             # Remove from tracking
-            self._pending_holds.pop(transfer_id, None)
+            cursor.execute("DELETE FROM pending_holds WHERE transfer_id = ?", (transfer_id,))
+            
+        conn.commit()
+        conn.close()
             
     def get_stats(self) -> Dict:
         """Get stats for dashboard."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM pending_holds")
+        count = cursor.fetchone()[0]
+        conn.close()
+        
         return {
             "is_running": self._running,
             "interval_seconds": self.interval_seconds,
-            "pending_holds_tracked": len(self._pending_holds)
+            "pending_holds_tracked": count
         }

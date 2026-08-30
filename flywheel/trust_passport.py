@@ -12,6 +12,7 @@ import hashlib
 from datetime import datetime
 from typing import Dict, List, Optional
 import math
+from database import get_db_connection
 
 logger = logging.getLogger("eqlipz.flywheel.trust")
 
@@ -29,29 +30,32 @@ class TrustPassportService:
     """
     
     def __init__(self):
-        # In-memory ledger mapping entity_hash -> passport data
-        self._ledgers: Dict[str, Dict] = {}
-        
-        # Log of issued credentials
-        self._credential_log: List[Dict] = []
-        
-        logger.info("[TrustPassport] Initialized.")
+        logger.info("[TrustPassport] Initialized with SQLite backend.")
         
     def _hash_entity(self, entity_id: str) -> str:
         """Hash entity ID to avoid storing raw data."""
         return hashlib.sha256(entity_id.encode()).hexdigest()
         
     def _get_or_create(self, entity_hash: str) -> Dict:
-        if entity_hash not in self._ledgers:
-            self._ledgers[entity_hash] = {
-                "entity_hash": entity_hash,
-                "benign_count": 0,
-                "cleared_holds": 0,
-                "disputes_lost": 0,
-                "created_at": datetime.now().isoformat(),
-                "last_updated": datetime.now().isoformat(),
-            }
-        return self._ledgers[entity_hash]
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM trust_passports WHERE entity_hash = ?", (entity_hash,))
+        row = cursor.fetchone()
+        
+        if not row:
+            now = datetime.now().isoformat()
+            cursor.execute(
+                "INSERT INTO trust_passports (entity_hash, created_at, last_updated) VALUES (?, ?, ?)",
+                (entity_hash, now, now)
+            )
+            conn.commit()
+            
+            cursor.execute("SELECT * FROM trust_passports WHERE entity_hash = ?", (entity_hash,))
+            row = cursor.fetchone()
+            
+        conn.close()
+        return dict(row)
     
     def issue_credential(
         self,
@@ -68,34 +72,43 @@ class TrustPassportService:
         entity_hash = self._hash_entity(entity_id)
         passport = self._get_or_create(entity_hash)
         
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
         if outcome_type == "benign_tx":
-            passport["benign_count"] += 1
+            cursor.execute("UPDATE trust_passports SET benign_count = benign_count + 1, last_updated = ? WHERE entity_hash = ?", (datetime.now().isoformat(), entity_hash))
         elif outcome_type == "cleared_hold":
-            passport["cleared_holds"] += 1
+            cursor.execute("UPDATE trust_passports SET cleared_holds = cleared_holds + 1, last_updated = ? WHERE entity_hash = ?", (datetime.now().isoformat(), entity_hash))
         elif outcome_type == "dispute_lost":
-            passport["disputes_lost"] += 1
+            cursor.execute("UPDATE trust_passports SET disputes_lost = disputes_lost + 1, last_updated = ? WHERE entity_hash = ?", (datetime.now().isoformat(), entity_hash))
         else:
             logger.warning(f"[TrustPassport] Unknown outcome type: {outcome_type}")
+            conn.close()
             return passport
             
-        passport["last_updated"] = datetime.now().isoformat()
-        self._ledgers[entity_hash] = passport
+        conn.commit()
         
         # Record event
-        event = {
-            "entity_hash": entity_hash,
-            "event_type": outcome_type,
-            "timestamp": passport["last_updated"],
-            "credential_id": f"cred_{hashlib.sha256((entity_hash + outcome_type + passport['last_updated']).encode()).hexdigest()[:16]}"
-        }
-        self._credential_log.append(event)
+        timestamp = datetime.now().isoformat()
+        credential_id = f"cred_{hashlib.sha256((entity_hash + outcome_type + timestamp).encode()).hexdigest()[:16]}"
+        
+        cursor.execute(
+            "INSERT INTO credential_log (entity_hash, event_type, timestamp, credential_id) VALUES (?, ?, ?, ?)",
+            (entity_hash, outcome_type, timestamp, credential_id)
+        )
+        conn.commit()
+        
+        # Fetch updated
+        cursor.execute("SELECT * FROM trust_passports WHERE entity_hash = ?", (entity_hash,))
+        updated_passport = dict(cursor.fetchone())
+        conn.close()
         
         logger.info(
             f"[TrustPassport] Updated passport for {entity_hash[:8]}... "
             f"Event: {outcome_type}"
         )
         
-        return passport
+        return updated_passport
 
     def get_trust_factor(self, entity_id: str) -> float:
         """
@@ -106,10 +119,17 @@ class TrustPassportService:
         0.0 = Distrusted (bias towards REFUSE/HOLD)
         """
         entity_hash = self._hash_entity(entity_id)
-        if entity_hash not in self._ledgers:
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM trust_passports WHERE entity_hash = ?", (entity_hash,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
             return 0.5  # Neutral default
             
-        passport = self._ledgers[entity_hash]
+        passport = dict(row)
         
         # Base formula:
         # Cleared holds are worth 5x normal benign transactions.
@@ -138,7 +158,15 @@ class TrustPassportService:
         
     def get_stats(self) -> Dict:
         """Summary stats for dashboard."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM trust_passports")
+        total_passports = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM credential_log")
+        credentials_issued = cursor.fetchone()[0]
+        conn.close()
+        
         return {
-            "total_passports": len(self._ledgers),
-            "credentials_issued": len(self._credential_log),
+            "total_passports": total_passports,
+            "credentials_issued": credentials_issued,
         }

@@ -4,7 +4,7 @@
     --text-primary: #000000;
     --text-secondary: #444444;
     --text-muted: #888888;
-    --border-color: #c0c0c0; /* Slightly darker to accommodate thin visual */
+    --border-color: #93c5fd; /* Soft blue dashed lines */
     --primary-color: #4348E8;
     --accent-color: #000000;
     
@@ -23,6 +23,10 @@
     /* Hide scrollbar for IE, Edge and Firefox */
     -ms-overflow-style: none;
     scrollbar-width: none;
+}
+
+input, select, textarea, button {
+    font-family: 'Outfit', sans-serif;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
