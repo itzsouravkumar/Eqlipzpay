@@ -124,8 +124,17 @@ app = FastAPI(
     }
 )
 
-app.mount("/dashboard", StaticFiles(directory="static", html=True), name="static")
-app.mount("/static_front", StaticFiles(directory="frontend/dist"), name="static_front")
+import os
+
+if os.path.exists("static"):
+    app.mount("/dashboard", StaticFiles(directory="static", html=True), name="static")
+else:
+    logger.warning("Directory 'static' not found. /dashboard will not be mounted.")
+
+if os.path.exists("frontend/dist"):
+    app.mount("/static_front", StaticFiles(directory="frontend/dist"), name="static_front")
+else:
+    logger.warning("Directory 'frontend/dist' not found. /static_front will not be mounted.")
 
 # Share engine instances with routers via app.state
 app.state.conformal_engine = conformal_engine
@@ -601,13 +610,15 @@ def health_check():
 
 @app.get("/", include_in_schema=False)
 def read_root():
-    # Serve the React landing page
-    return FileResponse("frontend/dist/index.html")
+    if os.path.exists("frontend/dist/index.html"):
+        return FileResponse("frontend/dist/index.html")
+    return HTMLResponse("<h1>EqlipZ Pay - API is running. Frontend build missing.</h1>")
 
 @app.get("/case-study", include_in_schema=False)
 def read_case_study():
-    return FileResponse("frontend/dist/index.html")
-
+    if os.path.exists("frontend/dist/index.html"):
+        return FileResponse("frontend/dist/index.html")
+    return HTMLResponse("<h1>EqlipZ Pay - Case study missing.</h1>")
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html(req: Request):

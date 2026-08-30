@@ -11,14 +11,14 @@ function App() {
     <div className="min-h-screen flex flex-col font-sans text-[#111] overflow-x-hidden bg-[#F8F8F6]">
       {/* Top Banner */}
       <div className="bg-black text-white text-[11px] font-medium tracking-wide py-3 text-center flex flex-col md:flex-row items-center justify-center gap-2">
-        <span className="opacity-90">Read my Technical Evaluation Report from the Razorpay AI Buildathon 2026.</span>
+        <span className="opacity-90">Read my Technical Evaluation Report.</span>
         <a href="/case-study" className="underline opacity-100 font-bold hover:text-blue-300 transition-colors">Read the Case Study &rarr;</a>
       </div>
 
       {/* Navigation */}
       <nav className="flex justify-between items-center px-6 md:px-12 py-5 bg-transparent relative z-50">
         <div className="flex items-center gap-2">
-          <img src="/static_front/logo.png" alt="EqlipZ Pay Logo" className="w-5 h-5 object-contain mix-blend-multiply" />
+          <img src="/static_front/logo.png" alt="EqlipZ Pay Logo" className="w-5 h-5 object-contain" />
           <span className="font-semibold text-lg tracking-tight">EqlipZ Pay</span>
         </div>
         <div className="hidden md:flex gap-8 text-sm font-medium text-gray-600">
@@ -209,7 +209,7 @@ function App() {
       <footer className="py-16 px-6 md:px-12 border-t border-gray-200 bg-white flex flex-col md:flex-row justify-between items-start">
         <div className="mb-10 md:mb-0">
           <div className="flex items-center gap-2 mb-4">
-            <img src="/static_front/logo.png" alt="EqlipZ Pay Logo" className="w-5 h-5 object-contain mix-blend-multiply grayscale" />
+            <img src="/static_front/logo.png" alt="EqlipZ Pay Logo" className="w-5 h-5 object-contain" />
             <span className="font-semibold text-lg tracking-tight">EqlipZ Pay</span>
           </div>
           <p className="text-xs text-gray-500 max-w-xs leading-relaxed">

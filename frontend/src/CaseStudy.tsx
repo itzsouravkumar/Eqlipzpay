@@ -32,15 +32,15 @@ export default function CaseStudy() {
             Hey everyone, Sourav here.
           </p>
           <p>
-            As I build EqlipZ Pay for the <strong>Razorpay AI Buildathon 2026</strong>, I'm making a very deliberate decision: I don't want to just ship a flashy UI with empty promises. I want to build a mathematically sound Risk Engine that actually works. 
+            As I build EqlipZ Pay, I'm making a very deliberate decision: I don't want to just ship a flashy UI with empty promises. I want to build a mathematically sound Risk Engine that actually works. 
           </p>
           <p>
-            This document is my internal technical breakdown of what I'm building. Since I haven't been evaluated in the hackathon yet, it's written methodology-first because transparency matters to me. Everything here reflects the actual current state of the codebase.
+            This document is my internal technical breakdown of what I'm building. Everything here reflects the actual current state of the codebase.
           </p>
 
-          <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">1. What We Actually Built</h2>
+          <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">1. What I Actually Built</h2>
           <p>
-            Here is the raw truth about what is currently implemented and running in our prototype, versus what is just an architectural design on paper:
+            Here is the raw truth about what is currently implemented and running in my prototype, versus what is just an architectural design on paper:
           </p>
           <div className="overflow-x-auto mt-4 mb-8">
             <table className="w-full text-left text-sm">
@@ -63,7 +63,7 @@ export default function CaseStudy() {
             </table>
           </div>
           <p>
-            <strong>Why this matters:</strong> EqlipZ Pay is no longer just evaluating <em>core risk decisioning</em> in isolation. The network effects (Trust Passport), automated recalibration loops, and background escrow sweepers are now fully implemented against a persistent SQLite backend. As real transactions hit the prototype, these systems actively learn and adapt.
+            <strong>Why this matters:</strong> EqlipZ Pay is no longer just evaluating <em>core risk decisioning</em> in isolation. The network effects (Trust Passport), automated recalibration loops, and background escrow sweepers are now fully implemented against a persistent SQLite database mounted on Render. As real transactions hit the prototype, these systems actively learn and adapt dynamically without being synthetic mockups.
           </p>
 
           <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">2. Deep Dive: Architecture</h2>
@@ -119,7 +119,7 @@ export default function CaseStudy() {
 
           <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">5. What's Next?</h2>
           <p>
-            I'm building an end-to-end API that produces mathematically plausible numbers. My immediate next steps for the buildathon are:
+            I'm building an end-to-end API that produces mathematically plausible numbers. My immediate next steps are:
           </p>
           <ol className="list-decimal pl-5 space-y-2 mt-4">
             <li>Source a real transactional dataset (like BankSim) to properly calibrate the conformal engine.</li>
@@ -128,7 +128,7 @@ export default function CaseStudy() {
           </ol>
 
           <p className="mt-12 text-gray-500 italic">
-            Thanks for reading! I'm incredibly proud of what I'm building for the Razorpay AI Buildathon, and I'm just getting started.
+            Thanks for reading! I'm incredibly proud of what I'm building, and I'm just getting started.
           </p>
 
         </article>
