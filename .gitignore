@@ -10,3 +10,10 @@ htmlcov/
 pitchdeck_script.md
 frontend/node_modules
 frontend/dist
+
+# Datasets
+data/*.csv
+data/ieee-fraud-detection/
+data/processed/
+data/ulb_creditcard.csv
+

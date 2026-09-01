@@ -44,12 +44,14 @@ def load_splits(dataset_name: str):
 
 def train_fraud_model(X_train, y_train):
     """
-    Train a LightGBM classifier optimized for fraud detection.
+    Train a robust ensemble classifier (LightGBM + XGBoost) optimized for fraud detection.
     
     Uses scale_pos_weight to handle severe class imbalance
     (typical fraud rate: 0.17% - 3.5%).
     """
     from lightgbm import LGBMClassifier
+    from xgboost import XGBClassifier
+    from sklearn.ensemble import VotingClassifier
     
     # Calculate class imbalance ratio
     n_neg = (y_train == 0).sum()
@@ -59,7 +61,7 @@ def train_fraud_model(X_train, y_train):
     logger.info(f"Class distribution: {n_neg:,} legitimate / {n_pos:,} fraud")
     logger.info(f"Scale pos weight: {scale_pos_weight:.1f}")
     
-    model = LGBMClassifier(
+    lgb_model = LGBMClassifier(
         n_estimators=300,
         max_depth=7,
         learning_rate=0.05,
@@ -75,7 +77,25 @@ def train_fraud_model(X_train, y_train):
         n_jobs=-1,
     )
     
-    logger.info("Training LightGBM fraud model...")
+    xgb_model = XGBClassifier(
+        n_estimators=300,
+        max_depth=7,
+        learning_rate=0.05,
+        scale_pos_weight=scale_pos_weight,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        verbosity=0,
+        n_jobs=-1,
+        eval_metric='logloss'
+    )
+    
+    model = VotingClassifier(
+        estimators=[('lgb', lgb_model), ('xgb', xgb_model)],
+        voting='soft'
+    )
+    
+    logger.info("Training Ensemble (LGBM+XGB) fraud model...")
     model.fit(X_train, y_train)
     logger.info("Training complete.")
     
@@ -286,6 +306,50 @@ def main():
         logger.warning("ULB dataset not found. Skipping.")
     except Exception as e:
         logger.warning(f"ULB training/evaluation failed: {e}")
+        
+    # ── Train on Sparkov ──
+    try:
+        logger.info("\nLoading Sparkov dataset...")
+        sparkov_train, sparkov_cal, sparkov_test = load_splits("sparkov")
+        
+        sp_target = "isFraud"
+        sp_feature_cols = [c for c in sparkov_train.columns if c != sp_target]
+        
+        sparkov_model = train_fraud_model(sparkov_train[sp_feature_cols], sparkov_train[sp_target])
+        sparkov_mapie = calibrate_conformal(sparkov_model, sparkov_cal[sp_feature_cols], sparkov_cal[sp_target], alpha=0.10)
+        
+        joblib.dump(sparkov_mapie, MODELS_DIR / "sparkov_model_mapie.joblib")
+        joblib.dump(sp_feature_cols, MODELS_DIR / "sparkov_feature_columns.joblib")
+        
+        sparkov_results = evaluate(sparkov_mapie, sparkov_test[sp_feature_cols], sparkov_test[sp_target], alpha=0.10, dataset_name="Sparkov Test")
+        results_out["sparkov"] = sparkov_results
+        
+    except FileNotFoundError:
+        logger.warning("Sparkov dataset not found. Skipping.")
+    except Exception as e:
+        logger.warning(f"Sparkov training/evaluation failed: {e}")
+        
+    # ── Train on PaySim ──
+    try:
+        logger.info("\nLoading PaySim dataset...")
+        ps_train, ps_cal, ps_test = load_splits("paysim")
+        
+        ps_target = "isFraud"
+        ps_feature_cols = [c for c in ps_train.columns if c != ps_target]
+        
+        ps_model = train_fraud_model(ps_train[ps_feature_cols], ps_train[ps_target])
+        ps_mapie = calibrate_conformal(ps_model, ps_cal[ps_feature_cols], ps_cal[ps_target], alpha=0.10)
+        
+        joblib.dump(ps_mapie, MODELS_DIR / "paysim_model_mapie.joblib")
+        joblib.dump(ps_feature_cols, MODELS_DIR / "paysim_feature_columns.joblib")
+        
+        ps_results = evaluate(ps_mapie, ps_test[ps_feature_cols], ps_test[ps_target], alpha=0.10, dataset_name="PaySim Test")
+        results_out["paysim"] = ps_results
+        
+    except FileNotFoundError:
+        logger.warning("PaySim dataset not found. Skipping.")
+    except Exception as e:
+        logger.warning(f"PaySim training/evaluation failed: {e}")
     
     # ── Summary ──
     print("\n" + "=" * 60)
@@ -305,6 +369,22 @@ def main():
     if "ulb" in results_out:
         res = results_out["ulb"]
         print(f"\n  {'Secondary' if 'ieee_cis' in results_out else 'Primary'} Model (ULB):")
+        print(f"    Precision:          {res['precision']:.4f}")
+        print(f"    Recall:             {res['recall']:.4f}")
+        print(f"    F1:                 {res['f1']:.4f}")
+        print(f"    Conformal Coverage: {res['conformal_coverage']:.4f}")
+        
+    if "sparkov" in results_out:
+        res = results_out["sparkov"]
+        print(f"\n  Synthetic Model (Sparkov):")
+        print(f"    Precision:          {res['precision']:.4f}")
+        print(f"    Recall:             {res['recall']:.4f}")
+        print(f"    F1:                 {res['f1']:.4f}")
+        print(f"    Conformal Coverage: {res['conformal_coverage']:.4f}")
+
+    if "paysim" in results_out:
+        res = results_out["paysim"]
+        print(f"\n  P2P Model (PaySim):")
         print(f"    Precision:          {res['precision']:.4f}")
         print(f"    Recall:             {res['recall']:.4f}")
         print(f"    F1:                 {res['f1']:.4f}")

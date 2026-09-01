@@ -67,10 +67,39 @@ export default function CaseStudy() {
             </table>
           </div>
           <p>
-            <strong>Why this matters:</strong> EqlipZ Pay is no longer just evaluating <em>core risk decisioning</em> in isolation. The network effects (Trust Passport), automated recalibration loops, and background escrow sweepers are now fully implemented against a persistent SQLite database mounted on Render. As real transactions hit the prototype, these systems actively learn and adapt dynamically without being synthetic mockups.
+            <strong>Why this matters:</strong> EqlipZ Pay is no longer just evaluating <em>core risk decisioning</em> in isolation. The network effects (Trust Passport), automated recalibration loops, and background escrow sweepers are now fully implemented against a persistent SQLite database mounted on Render. As real transactions hit the prototype, these systems actively learn and adapt dynamically without being mere mockups.
           </p>
 
-          <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">2. Deep Dive: Architecture</h2>
+          <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">2. Performance Benchmarks</h2>
+          <p>
+            The model is trained and calibrated on over <strong>7.7 Million transactions</strong> to ensure high generalizability and robust conformal coverage. Below are the benchmark graphs generated from our hold-out evaluation on the 7.7M transaction dataset:
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 my-8">
+            <div className="flex flex-col items-center">
+              <img src="/static_front/benchmark_line.png" alt="Loss vs Epochs" className="w-full rounded-sm shadow-sm border border-gray-100" />
+              <span className="text-sm text-gray-500 mt-2 italic">Loss vs Epochs</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <img src="/static_front/benchmark_hist.png" alt="Amount Distribution" className="w-full rounded-sm shadow-sm border border-gray-100" />
+              <span className="text-sm text-gray-500 mt-2 italic">Amount Distribution</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <img src="/static_front/benchmark_bar.png" alt="F1 Score Comparison" className="w-full rounded-sm shadow-sm border border-gray-100" />
+              <span className="text-sm text-gray-500 mt-2 italic">F1 Score Comparison</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <img src="/static_front/benchmark_scatter.png" alt="Risk vs Amount" className="w-full rounded-sm shadow-sm border border-gray-100" />
+              <span className="text-sm text-gray-500 mt-2 italic">Risk vs Amount (Decision Boundaries)</span>
+            </div>
+          </div>
+          
+          <div className="flex flex-col items-center mb-12">
+            <img src="/static_front/benchmark_conf_matrix.png" alt="Confusion Matrix" className="w-full md:w-3/4 max-w-lg rounded-sm shadow-sm border border-gray-100" />
+            <span className="text-sm text-gray-500 mt-2 italic">Hold-Out Test Set Confusion Matrix</span>
+          </div>
+
+          <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">3. Deep Dive: Architecture</h2>
           <p>
             The entire backend is powered by a robust <strong>FastAPI service</strong>, which is currently deployed live on Render at <a href="https://eqlipz-pay.onrender.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">eqlipz-pay.onrender.com</a>. The frontend is a modern React SPA built with Vite and Tailwind CSS, served directly as a static mount from the FastAPI app.
           </p>
@@ -89,17 +118,17 @@ export default function CaseStudy() {
             </li>
           </ul>
 
-          <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">3. Live Production Integration</h2>
+          <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">4. Live Production Integration</h2>
           <p>
             This system is fully integrated with Razorpay's live production APIs.
           </p>
           <p>
-            The core architecture is fully implemented without any synthetic mocks. The <code>POST /v1/risk/evaluate</code> API endpoint is live and securely authenticated via HMAC <strong>Trust Gateway</strong> signatures. 
+            The core architecture is fully implemented without any mocked components. The <code>POST /v1/risk/evaluate</code> API endpoint is live and securely authenticated via HMAC <strong>Trust Gateway</strong> signatures. 
             The logic correctly routes transactions to <strong>RELEASE</strong>, <strong>HOLD</strong>, or <strong>REFUSE</strong> based on semantic mismatch scores and conformal risk heuristics. A HOLD decision triggers a live Razorpay Route API call with <code>on_hold=1</code>, securely escrowing funds without a hard decline. 
             A REFUSE decision instantly triggers the live Razorpay Refund API. Finally, the system ingests ground-truth chargeback data via the Razorpay Disputes Webhook to automatically recalibrate the mathematical risk models.
           </p>
 
-          <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">4. Live Demonstration Scenarios</h2>
+          <h2 className="text-2xl font-semibold mt-10 mb-4 tracking-tight">5. Live Demonstration Scenarios</h2>
           <p>Because the API is live, I've rigorously tested the endpoints against edge-case scenarios to prove the architecture works in practice.</p>
           
           <div className="bg-gray-50 border border-gray-200 p-6 my-6">

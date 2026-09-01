@@ -1,14 +1,54 @@
 {
-    "dataset": "ULB Credit Card Fraud (Sept 2013)",
-    "transactions_evaluated": 56962,
-    "metrics": {
-        "precision": 0.672,
-        "recall": 0.857,
-        "f1_score": 0.753,
-        "aucpr": 0.526,
-        "false_positive_cost_est": "$82.00",
-        "conformal_coverage": "90.6%"
-    },
-    "model_type": "LightGBM + Mapie (SplitConformalClassifier)",
-    "timestamp": "2026-08-26T19:29:32.330359"
+  "ieee_cis": {
+    "dataset": "IEEE-CIS Test",
+    "n_samples": 118108,
+    "precision": 0.256792018419033,
+    "recall": 0.8095814178562787,
+    "f1": 0.38990852415078947,
+    "aucpr": 0.0,
+    "conformal_coverage": 0.9007095201002472,
+    "n_release": 103841,
+    "n_refuse": 11871,
+    "n_hold": 2396,
+    "hold_rate": 0.020286517424729908
+  },
+  "ulb": {
+    "dataset": "ULB Test",
+    "n_samples": 56962,
+    "precision": 0.7280701754385965,
+    "recall": 0.8469387755102041,
+    "f1": 0.7830188679245284,
+    "aucpr": 0.0,
+    "conformal_coverage": 0.8993012885783505,
+    "n_release": 51188,
+    "n_refuse": 43,
+    "n_hold": 5731,
+    "hold_rate": 0.10061093360485938
+  },
+  "sparkov": {
+    "dataset": "Sparkov Test",
+    "n_samples": 111144,
+    "precision": 0.0628385698808234,
+    "recall": 0.8111888111888111,
+    "f1": 0.11664152840623429,
+    "aucpr": 0.0,
+    "conformal_coverage": 0.9022169437846398,
+    "n_release": 100004,
+    "n_refuse": 2509,
+    "n_hold": 8631,
+    "hold_rate": 0.0776560138199093
+  },
+  "paysim": {
+    "dataset": "PaySim Test",
+    "n_samples": 1272524,
+    "precision": 0.1314439492052813,
+    "recall": 0.9513085818624467,
+    "f1": 0.230973843653022,
+    "aucpr": 0.0,
+    "conformal_coverage": 0.9003712307194206,
+    "n_release": 1144787,
+    "n_refuse": 997,
+    "n_hold": 126740,
+    "hold_rate": 0.09959733568875714
+  }
 }

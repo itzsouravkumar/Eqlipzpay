@@ -36,7 +36,12 @@ def ensure_dirs():
 
 
 def download_ieee_cis() -> Path:
-    """Download IEEE-CIS Fraud Detection dataset from Kaggle."""
+    """Download IEEE-CIS Fraud Detection dataset from Kaggle or use local."""
+    local_path = BASE_DIR / "ieee-fraud-detection"
+    if local_path.exists() and (local_path / "train_transaction.csv").exists():
+        logger.info(f"Using local IEEE-CIS dataset at: {local_path}")
+        return local_path
+        
     try:
         import kagglehub
         logger.info("Downloading IEEE-CIS Fraud Detection dataset...")
@@ -62,6 +67,32 @@ def download_ulb() -> Path:
     except Exception as e:
         logger.error(f"Failed to download ULB: {e}")
         logger.info("Make sure you have a Kaggle API token at ~/.kaggle/kaggle.json")
+        raise
+
+
+def download_sparkov() -> Path:
+    """Download Sparkov Synthetic dataset from Kaggle."""
+    try:
+        import kagglehub
+        logger.info("Downloading Sparkov dataset...")
+        path = kagglehub.dataset_download("kartik2112/fraud-detection")
+        logger.info(f"Sparkov downloaded to: {path}")
+        return Path(path)
+    except Exception as e:
+        logger.error(f"Failed to download Sparkov: {e}")
+        raise
+
+
+def download_paysim() -> Path:
+    """Download PaySim dataset from Kaggle."""
+    try:
+        import kagglehub
+        logger.info("Downloading PaySim dataset...")
+        path = kagglehub.dataset_download("ealaxi/paysim1")
+        logger.info(f"PaySim downloaded to: {path}")
+        return Path(path)
+    except Exception as e:
+        logger.error(f"Failed to download PaySim: {e}")
         raise
 
 
@@ -188,6 +219,65 @@ def preprocess_ulb(dataset_path: Path) -> pd.DataFrame:
     return df
 
 
+def preprocess_sparkov(dataset_path: Path) -> pd.DataFrame:
+    """Preprocess the Sparkov dataset."""
+    logger.info("Preprocessing Sparkov dataset...")
+    
+    csv_path = dataset_path / "fraudTest.csv" # or fraudTrain.csv
+    if not csv_path.exists():
+        for f in dataset_path.rglob("*.csv"):
+            if "fraudTrain" in f.name or "fraudTest" in f.name:
+                csv_path = f
+                break
+                
+    df = pd.read_csv(csv_path)
+    logger.info(f"Sparkov shape: {df.shape}")
+    
+    # Rename target
+    df = df.rename(columns={"is_fraud": "isFraud"})
+    
+    # Simple feature selection for harmonization
+    features_to_keep = ["amt", "city_pop", "isFraud"]
+    
+    df_selected = df[[c for c in features_to_keep if c in df.columns]].copy()
+    
+    if "amt" in df_selected.columns:
+        df_selected["log_amount"] = np.log1p(df_selected["amt"])
+        df_selected["TransactionAmt"] = df_selected["amt"]
+        
+    # Fill NA
+    df_selected.fillna(0, inplace=True)
+    return df_selected
+
+
+def preprocess_paysim(dataset_path: Path) -> pd.DataFrame:
+    """Preprocess the PaySim dataset."""
+    logger.info("Preprocessing PaySim dataset...")
+    
+    csv_path = dataset_path / "PS_20174392719_1491204439457_log.csv"
+    if not csv_path.exists():
+        for f in dataset_path.rglob("*.csv"):
+            csv_path = f
+            break
+            
+    df = pd.read_csv(csv_path)
+    logger.info(f"PaySim shape: {df.shape}")
+    
+    # Rename target
+    df = df.rename(columns={"isFraud": "isFraud"})
+    
+    # Simple feature selection
+    features_to_keep = ["amount", "oldbalanceOrg", "newbalanceOrig", "oldbalanceDest", "newbalanceDest", "isFraud"]
+    df_selected = df[[c for c in features_to_keep if c in df.columns]].copy()
+    
+    if "amount" in df_selected.columns:
+        df_selected["log_amount"] = np.log1p(df_selected["amount"])
+        df_selected["TransactionAmt"] = df_selected["amount"]
+        
+    df_selected.fillna(0, inplace=True)
+    return df_selected
+
+
 def split_and_save(df: pd.DataFrame, name: str, 
                    train_frac: float = 0.6, 
                    cal_frac: float = 0.2):
@@ -255,6 +345,22 @@ def main():
         split_and_save(df_ulb, "ulb")
     except Exception as e:
         logger.error(f"ULB pipeline failed: {e}")
+        
+    # Download and preprocess Sparkov
+    try:
+        sparkov_path = download_sparkov()
+        df_sparkov = preprocess_sparkov(sparkov_path)
+        split_and_save(df_sparkov, "sparkov")
+    except Exception as e:
+        logger.error(f"Sparkov pipeline failed: {e}")
+        
+    # Download and preprocess PaySim
+    try:
+        paysim_path = download_paysim()
+        df_paysim = preprocess_paysim(paysim_path)
+        split_and_save(df_paysim, "paysim")
+    except Exception as e:
+        logger.error(f"PaySim pipeline failed: {e}")
     
     print("\n" + "=" * 60)
     print("  Dataset pipeline complete!")

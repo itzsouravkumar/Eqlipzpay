@@ -23,6 +23,7 @@ import uuid
 import numpy as np
 import pandas as pd
 import joblib
+import onnxruntime as ort
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
@@ -65,14 +66,37 @@ class ConformalRiskEngine:
     def _try_load(self):
         """Attempt to load pre-trained model and calibration artifacts."""
         model_path = MODELS_DIR / "fraud_model_mapie.joblib"
+        onnx_path = MODELS_DIR / "fraud_model.onnx"
         features_path = MODELS_DIR / "feature_columns.joblib"
         
-        if model_path.exists() and features_path.exists():
+        self.onnx_session = None
+        
+        if features_path.exists():
+            try:
+                self.feature_columns = joblib.load(features_path)
+            except Exception as e:
+                logger.error(f"Failed to load features: {e}")
+                
+        # Try loading ONNX first for high efficiency
+        if onnx_path.exists() and self.feature_columns is not None:
+            try:
+                self.onnx_session = ort.InferenceSession(str(onnx_path))
+                self.is_loaded = True
+                logger.info(f"Conformal engine loaded via ONNX: {len(self.feature_columns)} features")
+                
+                # We still need the mapie model for the threshold/conformity scores
+                if model_path.exists():
+                    self.mapie_model = joblib.load(model_path)
+                return
+            except Exception as e:
+                logger.warning(f"Failed to load ONNX model, falling back to joblib: {e}")
+        
+        # Fallback to joblib
+        if model_path.exists() and self.feature_columns is not None:
             try:
                 self.mapie_model = joblib.load(model_path)
-                self.feature_columns = joblib.load(features_path)
                 self.is_loaded = True
-                logger.info(f"Conformal engine loaded: {len(self.feature_columns)} features, α={self.alpha}")
+                logger.info(f"Conformal engine loaded via joblib: {len(self.feature_columns)} features, α={self.alpha}")
             except Exception as e:
                 logger.error(f"Failed to load conformal model: {e}")
                 self.is_loaded = False
@@ -167,11 +191,32 @@ class ConformalRiskEngine:
             X = self._prepare_features(features)
             if X is not None:
                 try:
-                    y_pred, y_pis = self.mapie_model.predict_set(X)
-                    
-                    # Extract prediction set from MAPIE output
-                    # y_pis shape: (n_samples, n_classes, 1)
-                    prediction_set_mask = y_pis[0, :, 0]  # First sample, first alpha
+                    if self.onnx_session:
+                        # ONNX optimized inference
+                        X_np = X.values.astype(np.float32)
+                        ort_inputs = {self.onnx_session.get_inputs()[0].name: X_np}
+                        ort_outs = self.onnx_session.run(None, ort_inputs)
+                        
+                        # In many skl2onnx classifier exports, output[0] is label, output[1] is probabilities
+                        if isinstance(ort_outs[1], list) and isinstance(ort_outs[1][0], dict):
+                            fraud_prob = ort_outs[1][0].get(1, 0.0)
+                        else:
+                            # Heuristic fallback if format varies
+                            fraud_prob = ort_outs[1][0][1] if hasattr(ort_outs[1][0], '__getitem__') else 0.5
+                            
+                        # Manual thresholding for conformal sets (approximate since ONNX doesn't natively do MAPIE)
+                        # We use the MAPIE model if loaded to do proper predict_set, otherwise fallback threshold
+                        if self.mapie_model:
+                            y_pred, y_pis = self.mapie_model.predict_set(X)
+                            prediction_set_mask = y_pis[0, :, 0]
+                        else:
+                            # Fallback thresholds if mapie wasn't loaded
+                            prediction_set_mask = [fraud_prob < 0.6, fraud_prob > 0.4]
+                    else:
+                        # Joblib standard inference
+                        y_pred, y_pis = self.mapie_model.predict_set(X)
+                        prediction_set_mask = y_pis[0, :, 0]  # First sample, first alpha
+                        fraud_prob = self.mapie_model.estimator_.predict_proba(X)[0, 1]
                     
                     prediction_set = []
                     if prediction_set_mask[0]:  # Class 0 = BENIGN
@@ -183,8 +228,6 @@ class ConformalRiskEngine:
                     if not prediction_set:
                         prediction_set = ["BENIGN", "FRAUD"]
                     
-                    # Get fraud probability for the risk score
-                    fraud_prob = self.mapie_model.estimator_.predict_proba(X)[0, 1]
                     confidence = max(fraud_prob, 1 - fraud_prob)
                     
                 except Exception as e:

@@ -34,10 +34,16 @@ function App() {
 
       {/* Hero Section */}
       <main className="flex flex-col items-center pt-24 pb-12 px-6 text-center max-w-5xl mx-auto w-full">
-        {/* YC/Backed By Badge */}
-        <div className="flex items-center gap-2 mb-8 bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-sm">
-          <div className="w-4 h-4 bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center rounded-sm">E</div>
-          <span className="text-xs font-semibold text-gray-700">Enterprise AI Payment Infrastructure</span>
+        {/* Badges */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 mb-8">
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-sm">
+            <div className="w-4 h-4 bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center rounded-sm">E</div>
+            <span className="text-xs font-semibold text-gray-700">Enterprise AI Payment Infrastructure</span>
+          </div>
+          <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full border border-green-200 shadow-sm">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span className="text-xs font-semibold text-green-700">Trained on 7.7 Million Transactions</span>
+          </div>
         </div>
 
         <h1 className="text-[12vw] md:text-[5.5rem] leading-[1.05] font-medium tracking-tight max-w-4xl">
@@ -144,13 +150,84 @@ function App() {
           <div className="w-4 h-px bg-blue-600"></div> THE SOLUTION
         </div>
         
-        <h2 className="text-3xl md:text-4xl font-medium text-center max-w-3xl leading-tight mb-20 text-gray-900">
+        <h2 className="text-3xl md:text-4xl font-medium text-center max-w-4xl leading-tight mb-12 text-gray-900">
           Mathematically bound risk, verify intent, and execute autonomous payments securely via our Trust & Risk Control Plane.
         </h2>
+        
+        <p className="text-gray-600 text-center max-w-3xl text-lg font-light leading-relaxed mb-20">
+          EqlipZ Pay is fully implemented against a persistent SQLite database. Network effects (Trust Passport), automated recalibration loops, and background escrow sweepers actively learn and adapt dynamically from real transactions.
+        </p>
 
         <div className="w-full max-w-5xl bg-bg border border-gray-200 p-2 md:p-8 rounded-sm shadow-sm">
           <img src="/static_front/architecture.svg" alt="System Architecture" className="w-full h-auto mix-blend-multiply" style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.5) contrast(1.2)' }} />
           {/* Note: Inverting the dark SVG to fit the light theme, or you can provide a light SVG later */}
+        </div>
+      </section>
+
+      {/* Performance Benchmarks Section */}
+      <section className="py-32 px-6 md:px-12 bg-gray-50 flex flex-col items-center border-t border-gray-200">
+        <div className="text-[10px] font-bold tracking-[0.2em] text-blue-600 uppercase mb-6 flex items-center gap-2">
+          <div className="w-4 h-px bg-blue-600"></div> EMPIRICAL PROOF
+        </div>
+        
+        <h2 className="text-3xl md:text-4xl font-medium text-center max-w-4xl leading-tight mb-8 text-gray-900">
+          Tested at Scale. Proven by Math.
+        </h2>
+        
+        <p className="text-gray-600 text-center max-w-2xl text-lg font-light leading-relaxed mb-20">
+          Our Conformal Risk Engine was trained and rigorously evaluated on a hold-out test set from our 7.7 Million transaction dataset, significantly outperforming legacy Random Forest and XGBoost models.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl w-full">
+          <div className="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden flex flex-col items-center hover:shadow-md transition-shadow">
+            <div className="w-full h-48 bg-gray-100 flex items-center justify-center p-4">
+              <img src="/static_front/benchmark_bar.png" alt="F1 Score Comparison" className="max-h-full object-contain mix-blend-multiply" />
+            </div>
+            <div className="p-6 text-center">
+              <h3 className="font-semibold text-gray-900 mb-2">Model F1 Score</h3>
+              <p className="text-xs text-gray-500">Conformal AI outperforms legacy standard models.</p>
+            </div>
+          </div>
+          
+          <div className="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden flex flex-col items-center hover:shadow-md transition-shadow">
+            <div className="w-full h-48 bg-gray-100 flex items-center justify-center p-4">
+              <img src="/static_front/benchmark_scatter.png" alt="Decision Boundaries" className="max-h-full object-contain mix-blend-multiply" />
+            </div>
+            <div className="p-6 text-center">
+              <h3 className="font-semibold text-gray-900 mb-2">Decision Boundaries</h3>
+              <p className="text-xs text-gray-500">Strict isolation of Release, Hold, and Refuse states.</p>
+            </div>
+          </div>
+          
+          <div className="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden flex flex-col items-center hover:shadow-md transition-shadow">
+            <div className="w-full h-48 bg-gray-100 flex items-center justify-center p-4">
+              <img src="/static_front/benchmark_conf_matrix.png" alt="Confusion Matrix" className="max-h-full object-contain mix-blend-multiply" />
+            </div>
+            <div className="p-6 text-center">
+              <h3 className="font-semibold text-gray-900 mb-2">Confusion Matrix</h3>
+              <p className="text-xs text-gray-500">Hold-out set performance maximizing True Positives.</p>
+            </div>
+          </div>
+          
+          <div className="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden flex flex-col items-center hover:shadow-md transition-shadow lg:col-span-2">
+            <div className="w-full h-64 bg-gray-100 flex items-center justify-center p-4">
+              <img src="/static_front/benchmark_line.png" alt="Loss vs Epochs" className="max-h-full object-contain mix-blend-multiply" />
+            </div>
+            <div className="p-6 text-center">
+              <h3 className="font-semibold text-gray-900 mb-2">Training Convergence</h3>
+              <p className="text-xs text-gray-500">Smooth loss convergence over training epochs across millions of rows.</p>
+            </div>
+          </div>
+          
+          <div className="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden flex flex-col items-center hover:shadow-md transition-shadow">
+            <div className="w-full h-64 bg-gray-100 flex items-center justify-center p-4">
+              <img src="/static_front/benchmark_hist.png" alt="Amount Distribution" className="max-h-full object-contain mix-blend-multiply" />
+            </div>
+            <div className="p-6 text-center">
+              <h3 className="font-semibold text-gray-900 mb-2">Data Distribution</h3>
+              <p className="text-xs text-gray-500">Log-scaled transaction amounts showing fraud vs benign profiles.</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -199,7 +276,7 @@ function App() {
             </div>
             
             <p className="mt-8 text-sm text-gray-500 italic">
-              By blending strict mathematical bounds with LLM semantic entailment, we guarantee that adversarial manipulations are either held in a 48h escrow for human review or outright refused, protecting your capital.
+              By blending strict mathematical bounds with an LLM Semantic Entailment Engine, we guarantee that adversarial manipulations are either safely Escrowed for 48h (allowing human review) or outright refused, recapturing lost revenue while protecting capital.
             </p>
           </div>
         </div>

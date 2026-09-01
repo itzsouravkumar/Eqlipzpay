@@ -110,6 +110,27 @@ Where:
 - `TrustAdjustment`: Continuous reputation score for the specific AI Agent Vendor.
 - `NetworkRisk` / `LiquidityPenalty`: Dynamic metrics fetched from the SQLite control plane.
 
+### AI Model & Benchmark
+
+EqlipZ Pay utilizes a LightGBM classifier wrapped with MAPIE (SplitConformalClassifier) for its primary risk detection (P(Fraud)). The model is trained and calibrated on over **7.7 Million transactions** to ensure high generalizability and robust conformal coverage.
+
+#### Performance Benchmarks
+
+Below are the benchmark graphs generated from our hold-out evaluation on the 7.7M transaction dataset:
+
+| Model Performance & Thresholds | Data Distributions |
+| :---: | :---: |
+| <img src="frontend/public/static_front/benchmark_line.png" width="400"> <br> *Loss vs Epochs* | <img src="frontend/public/static_front/benchmark_hist.png" width="400"> <br> *Amount Distribution* |
+| <img src="frontend/public/static_front/benchmark_bar.png" width="400"> <br> *F1 Score Comparison* | <img src="frontend/public/static_front/benchmark_scatter.png" width="400"> <br> *Risk vs Amount (Decision Boundaries)* |
+
+<div align="center">
+  <img src="frontend/public/static_front/benchmark_conf_matrix.png" width="500">
+  <br>
+  <em>Hold-Out Test Set Confusion Matrix</em>
+</div>
+
+*For more details on the training and evaluation process, check out our [Case Study](docs/case_study.md).*
+
 ### Feedback & Auto-Reconciliation Loop
 
 ```mermaid
