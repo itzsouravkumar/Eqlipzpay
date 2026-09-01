@@ -96,7 +96,7 @@ class IntentFirewall:
             else:
                 semantic_score = self._check_text_similarity(raw_intent_string, [item.model_dump() for item in cart])
                 
-            if semantic_score < 0.3:
+            if semantic_score <= 0.5:
                 reason_codes.append("semantic_mismatch")
                 constraint_score *= semantic_score
 
@@ -104,7 +104,7 @@ class IntentFirewall:
         alignment = IntentAlignment.AMBIGUOUS
         if constraint_score == 1.0 and semantic_score >= 0.7:
             alignment = IntentAlignment.ALIGNED
-        elif constraint_score <= 0.3 or semantic_score <= 0.3:
+        elif constraint_score <= 0.5 or semantic_score <= 0.5:
             alignment = IntentAlignment.MISMATCH
 
         intent_risk = round(1.0 - constraint_score, 4)

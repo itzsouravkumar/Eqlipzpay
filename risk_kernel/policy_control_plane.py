@@ -35,10 +35,10 @@ class PolicyControlPlane:
             action = ActionType.REFUSE
             return action, policy, reason_codes
             
-        if "category_mismatch" in reason_codes or "brand_mismatch" in reason_codes:
+        if "category_mismatch" in reason_codes or "brand_mismatch" in reason_codes or "semantic_mismatch" in reason_codes:
             # Maybe not a hard refuse, but definitely high risk
             # We'll let the risk components push E* up, or force a hold here.
-            e_star += 1000.0 # Artificial penalty
+            e_star += 1000.0 # Artificial penalty to force HOLD or STEP_UP
             
         # Tiered Logic based on E*
         if e_star < self.L1_THRESHOLD:
