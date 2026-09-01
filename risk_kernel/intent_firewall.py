@@ -28,12 +28,25 @@ except ImportError:
 
 class IntentFirewall:
     def __init__(self):
-        self.client = None
+        self.groq_client = None
+        self.gemini_client = None
+        
         if groq and os.environ.get("GROQ_API_KEY"):
             try:
-                self.client = groq.Groq()
+                self.groq_client = groq.Groq()
+                logger.info("[Intent Firewall] Initialized Groq client")
             except Exception as e:
                 logger.error(f"[Intent Firewall] Failed to initialize Groq: {e}")
+                
+        try:
+            from google import genai
+            if os.environ.get("GEMINI_API_KEY"):
+                self.gemini_client = genai.Client()
+                logger.info("[Intent Firewall] Initialized Gemini client")
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.error(f"[Intent Firewall] Failed to initialize Gemini: {e}")
                 
     def verify_intent(
         self,
@@ -91,10 +104,12 @@ class IntentFirewall:
         # 3. Fallback Semantic Check (if raw intent exists and deterministic checks didn't outright fail)
         semantic_score = 1.0
         if raw_intent_string and constraint_score > 0.0:
-            if self.client:
+            if self.groq_client or self.gemini_client:
                 semantic_score = self._check_llm(raw_intent_string, [item.model_dump() for item in cart])
             else:
                 semantic_score = self._check_text_similarity(raw_intent_string, [item.model_dump() for item in cart])
+                if semantic_score <= 0.5:
+                    logger.warning("[Intent Firewall] Semantic match failed using naive text similarity. Consider adding an LLM API key.")
                 
             if semantic_score <= 0.5:
                 reason_codes.append("semantic_mismatch")
@@ -120,32 +135,57 @@ class IntentFirewall:
         Does this cart match the user intent perfectly? 
         User Intent: "{user_intent}"
         Cart Items: {json.dumps(cart_items, indent=2)}
+        Evaluate if the items in the cart semantically fulfill the user's intent. 
         Output only a JSON object: {{"score": float between 0.0 and 1.0}}
         """
         try:
-            res = self.client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-            )
-            val = json.loads(res.choices[0].message.content)
-            return float(val.get("score", 0.5))
+            if self.gemini_client:
+                res = self.gemini_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt,
+                    config={'response_mime_type': 'application/json'}
+                )
+                val = json.loads(res.text)
+                return float(val.get("score", 0.5))
+            elif self.groq_client:
+                res = self.groq_client.chat.completions.create(
+                    model="qwen/qwen3.8-27b",
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                )
+                val = json.loads(res.choices[0].message.content)
+                return float(val.get("score", 0.5))
         except Exception as e:
-            logger.error(f"[Intent Firewall] LLM fallback failed: {e}")
+            logger.error(f"[Intent Firewall] LLM check failed: {e}")
             return 0.5
+        
+        return 0.5
 
     def _check_text_similarity(self, intent: str, cart_items: List[Dict]) -> float:
-        # Basic word overlap
-        intent_words = set(re.findall(r'\w+', intent.lower()))
-        cart_texts = " ".join([f"{i.get('name', '')} {i.get('category', '')}" for i in cart_items]).lower()
-        cart_words = set(re.findall(r'\w+', cart_texts))
+        """
+        A robust non-LLM fallback using Jaccard similarity without stop words.
+        """
+        stop_words = {"a", "an", "the", "and", "or", "but", "is", "if", "then", "else", "when", "please", "buy", "get", "some", "for", "me", "under", "over"}
+        
+        intent_words = set(re.findall(r'\w+', intent.lower())) - stop_words
+        
+        cart_texts = " ".join([f"{i.get('name', '')} {i.get('category', '')} {i.get('description', '')} {i.get('brand', '')}" for i in cart_items]).lower()
+        cart_words = set(re.findall(r'\w+', cart_texts)) - stop_words
         
         if not cart_words or not intent_words:
             return 0.5
             
         intersection = intent_words.intersection(cart_words)
-        score = len(intersection) / float(len(cart_words))
-        return min(1.0, score + 0.3)
+        
+        # Jaccard index
+        score = len(intersection) / float(len(intent_words.union(cart_words)))
+        
+        # If there is even a slight meaningful word overlap, we give it a passing grade in the naive fallback.
+        # Otherwise, the system defaults to 0.1 (mismatch).
+        if score > 0.0:
+            return min(1.0, score + 0.6)
+            
+        return 0.1
 
     def _check_injection_markers(self, cart_items: List[Dict]) -> float:
         injection_patterns = [
